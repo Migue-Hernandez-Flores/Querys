@@ -1,0 +1,116 @@
+IF @TipoConsulta = 24
+	BEGIN
+		SELECT @CodSucursal = Almacen FROM HNT.Usuarios WHERE UserID = @Usuario
+		
+		IF @Opc = 1
+		BEGIN
+			SET @QRY = '
+				SELECT 
+					A.Code
+					, CONCAT(''PRE-'',CAST(A.Code AS VARCHAR(15))) [Folio]
+					, FORMAT(A.CreateDate, ''yyyy-MM-dd'') [Fecha_de_Creacion]
+					, CASE 
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NOT NULL THEN A.MetodoPago + ''(Por confirmar)''
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NULL THEN A.MetodoPago + ''(Por depositar)''
+						ELSE A.MetodoPago
+						END [Metodo_de_pago]
+					, B.CardCode [Codigo_de_cliente]
+					, B.CardName [Nombre_de_cliente]
+					, A.Monto
+				FROM
+					credit.Ingresos A
+					JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode and A.TipoDoc = ''PRCB''
+				WHERE
+					A.Cancelado IS NULL
+			'
+
+			IF @Rol NOT IN (1, 2) BEGIN SET @QRY += '
+					AND A.CodSucursal = @CodSucursal
+			' END
+
+			set @QRY += '
+				ORDER BY A.CreateDate DESC
+			'
+
+			print @QRY
+			print @CodSucursal
+
+			SET @Params = '@CodSucursal VARCHAR(10)'
+			EXEC sp_executesql @QRY, @Params, @CodSucursal
+			SELECT 'Code' HiddenColumns
+		END
+		ELSE IF @Opc = 2
+		BEGIN
+			SELECT 
+				FechaCorte
+				, CodSucursal
+				, Currency
+				, CONCAT('PRE-', Code) Code
+				, CardCode
+				, Monto
+				, Observaciones
+				, MetodoPago
+				, Prefijo
+				, Folio
+				, Banco
+				, FechaDeposito
+				, NoCheque
+				, nAprobacion
+				, nAutorizacion
+				, nProteccion
+				, slpResponsable
+				, correoResponsable
+				, dateCorreo
+			FROM credit.Ingresos WHERE CODE = @Code
+			
+			CREATE TABLE #TblCalculoNC(
+				Factura varchar(50)
+				, Cliente varchar(50)
+				, NcReal decimal(18,4)
+				, NcPP decimal(18,4)
+			)
+		
+			SELECT C.Factura
+			INTO #TblFacturas
+			FROM SBOCTRZ.dbo.OINV A JOIN credit.IngresosDetalle C ON A.DocNum = C.Factura
+			WHERE C.Code = @Code
+
+			DECLARE Facturas CURSOR FOR SELECT Factura FROM #TblFacturas
+			OPEN Facturas
+			FETCH NEXT FROM Facturas INTO @Factura
+			WHILE @@fetch_status = 0
+			BEGIN
+				INSERT INTO #TblCalculoNC
+				SELECT Factura, Cliente, NcReal, NcPP 
+				FROM fu_sales_CalcularDiferencia_NC(@Factura)
+				FETCH NEXT FROM Facturas INTO @Factura
+			END
+			CLOSE Facturas
+			DEALLOCATE Facturas
+
+			SELECT
+				CAST(B.Factura AS INT) Factura
+				, '' Nombre
+				, CASE 
+					 WHEN DocCur = 'USD' THEN DocTotalFC 
+					 ELSE DocTotal 
+				  END - 
+				  CASE 
+					 WHEN DocCur = 'USD' THEN PaidFC 
+					 ELSE PaidToDate 
+				  END Saldo
+				, C.NcReal [NC_DE]
+				, C.NcPP [NC_PP]
+				, B.Monto [Importe]
+				, '' Mensaje
+			FROM 
+				SBOCTRZ.dbo.OINV A
+				JOIN credit.IngresosDetalle B ON A.DocNum = B.Factura AND B.Code <> 0 AND B.Code = @Code
+				JOIN #TblCalculoNC C ON B.Factura = C.Factura
+
+			SELECT '' HiddenColumns
+
+			DROP TABLE #TblFacturas
+			DROP TABLE #TblCalculoNC
+		END
+	END
