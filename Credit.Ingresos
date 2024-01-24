@@ -1,0 +1,796 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_credit_Ingresos]    Script Date: 23/01/2024 10:49:23 a. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[up_credit_Ingresos]
+	@TipoConsulta		int,
+	@Code				numeric(18,0) = NULL,
+	@Cliente			varchar(50) = NULL,
+	@Currency			varchar(5) = '$',
+	@Usuario			int = NULL,
+	@Jefa				varchar(500) = NULL,
+	@Sucursal			varchar(255) = NULL,
+	@MetodoPago			Varchar(250) = NULL,
+	@FechaCorte			date = NULL,
+	@Monto				decimal(18,4) = NULL,
+	@Prefijo			varchar(50) = NULL,
+	@Folio				varchar(25) = NULL,
+	@Cancelado			bit  = NULL,
+	@Obervaciones		varchar(500) = NULL,
+	@Agente				varchar(250) = NULL,
+	--CHEQUES
+	@FechaDeposito		date = NULL,
+	@NoCheque			varchar(100) = NULL,
+	@Banco				varchar(100) = NULL,
+	
+	--Detalle
+	@Factura			int = NULL,
+	@LineNum			int = NULL,
+
+	@var1				VARCHAR(50) = NULL, 
+	@var2				VARCHAR(50)=NULL, 
+	@UserID				INT =NULL,
+	
+	--REPORTES
+	@Desde				date = NULL,
+	@Hasta				date = NULL,
+	@Rol				int = NULL,
+	@NumAprobacion		int = NULL
+   ,@NumProteccion		int = NULL
+   ,@NumAutorizacion	varchar(100) = NULL
+   ,@Registrado			bit = NULL
+   ,@TipoRecibo			int = NULL --1 anticipo
+   ,@CodSucursal		varchar(MAX) = NULL --1 PCC
+   ,@query				varchar(max) = NULL--1 PCC
+   ,@NoPago				nvarchar(250) = NULL
+   ,@Error				VARCHAR(MAX) = NULL
+   ,@DocNum				VARCHAR(50) = NULL
+   ,@TipoDoc			VARCHAR(15) = NULL  --CambiosPrerecibo
+   --,@slpResponsable		VARCHAR(15) = NULL	--CambiosPrerecibo
+   ,@slpResponsable		INT = NULL	--CambiosPrerecibo_v2
+   ,@correoResponsable	VARCHAR(250) = NULL	--CambiosPrerecibo
+   ,@DateCorreo			DATETIME = NULL		--CambiosPrerecibo
+   ,@Ruta				VARCHAR(1500) = NULL--CambiosPrerecibo
+   ,@Opc				INT = NULL			--CambiosPrerecibo
+   ,@UpdateRecibo		VARCHAR(5) = NULL	--CambiosPrerecibo
+   ,@QRY				NVARCHAR(MAX) = NULL--CambiosPrerecibo
+   ,@Params				NVARCHAR(MAX) = NULL--CambiosPrerecibo
+   ,@Almacen				VARCHAR(15) = NULL
+AS 
+BEGIN 
+	IF @Sucursal = 'ESTADO DE MEXICO' 
+		SET @Sucursal = 'Estado de México'
+
+	IF @TipoConsulta <> 12 
+
+	SELECT
+		*
+	INTO #Folios
+	FROM(
+		--select 'Racsa' Sucursal, 5000000001 Folios
+		--union all
+		select 'Apizaco' Sucursal, 100000000 Folios, '04' CodSucursal
+		union all
+		select 'Cordoba', 200000000, '05'
+		union all
+		select 'Estado de México', 300000000, '03'
+		union all
+		select 'Guadalajara', 400000000, '07'
+		union all
+		select 'Monterrey' Codigo, 500000000, '02'
+		union all
+		select 'Puebla' Codigo, 1400000000 Nombre, '01'
+		union all
+		select 'Tepeaca' Codigo, 600000000, '06'
+		Union All
+		select 'Saltillo' Codigo, 700000000, '11'
+		UNION ALL
+		select 'Nuevo Laredo' Codigo, 800000000, '12'
+		UNION ALL
+		select 'Veracruz' Codigo, 900000000, '13'
+		UNION ALL
+		select 'Reynosa' Codigo, 1000000000, '14'
+		UNION ALL
+		select 'Monclova' Codigo, 1100000000, '15'
+		UNION ALL
+		select 'Coatzacoalcos' Codigo, 1200000000, '17'
+		UNION ALL
+		SELECT 'Kluum' Codigo, 1600000000, 'E13'
+		UNION ALL
+		SELECT 'Tampico' Codigo, 1300000000, '18'
+		UNION ALL
+		SELECT 'Villahermosa' Codigo, 1700000000, '19'
+		union all
+		select 'Monterrey Armadores' Codigo, 550000000, '20'
+		UNION ALL
+		SELECT 'Tijuana' Codigo, 1800000000, '21'
+		UNION ALL
+		SELECT 'Ensenada' Codigo, 1900000000, '22'
+		)T1
+
+	IF @TipoConsulta = 1 --CambiosPrerecibo
+	BEGIN
+		BEGIN TRY	
+			IF @UpdateRecibo = 'N'
+			BEGIN
+				SET @Jefa = ISNULL((SELECT U_Cobranza FROM [SBOCTRZ].dbo.OCRD WHERE CardCode = @Cliente), '')
+				IF @Prefijo IS NULL SET @Prefijo = ''
+
+				DECLARE @FolioIni decimal(18,0) = (SELECT Folios From #Folios Where CodSucursal = @CodSucursal)
+				SET @Code = ISNULL((SELECT MAX(Code) From credit.Ingresos Where CodSucursal = @CodSucursal)+1, (SELECT Folios From #Folios Where CodSucursal = @CodSucursal))
+
+				INSERT INTO credit.Ingresos 
+				([Code],[CreateDate],[UpdateDate],[Usuario],[CardCode],[JefaCobranza],[MetodoPago],[FechaCorte],[Monto],[Prefijo],[Folio],[Cancelado]
+				,[Sucursal],[Observaciones],[FechaDeposito],[NoCheque],[Banco],[Agente],[U_SegDto],[nAprobacion],[nProteccion],[nAutorizacion],tipoRecibo, Currency, CodSucursal, TipoDoc, slpResponsable, correoResponsable, DateCorreo, ProvPrerecibo)
+				VALUES (@Code, GETDATE(), GETDATE(), @Usuario, @Cliente, @Jefa, @MetodoPago, GETDATE(), @Monto, @Prefijo, @Folio, @Cancelado
+				, @Sucursal,@Obervaciones, @FechaDeposito, @NoCheque, @Banco, @Agente, NULL, @NumAprobacion, @NumProteccion, @NumAutorizacion, @TipoRecibo, @Currency, @CodSucursal, @TipoDoc, @slpResponsable, @correoResponsable, @DateCorreo , 'N')
+				
+				
+				SELECT Code, TipoDoc, 1 Success from credit.Ingresos where Code = @Code
+			END
+			ELSE IF @UpdateRecibo = 'Y'
+			BEGIN
+				UPDATE credit.Ingresos SET 
+					CardCode = @Cliente
+					, Usuario = @Usuario
+					, TipoRecibo = @TipoRecibo
+					, MetodoPago = @MetodoPago
+					, FechaCorte = GETDATE()
+					, Monto = @Monto
+					, Observaciones = @Obervaciones
+					, Sucursal = @Sucursal
+					, Agente = @Agente
+					, Prefijo = @Prefijo
+					, Folio = @Folio
+					, Banco = @Banco
+					, nAprobacion = @NumAprobacion
+					, FechaDeposito = @FechaDeposito
+					, NoCheque = @NoCheque
+					, nProteccion = @NumProteccion
+					, nAutorizacion = @NumAutorizacion
+					, CodSucursal = @CodSucursal
+					, TipoDoc = @TipoDoc
+					, slpResponsable = @slpResponsable
+					, correoResponsable = @correoResponsable
+					, DateCorreo = @DateCorreo
+					, ProvPrerecibo = 'Y'
+					, CreateDate = GETDATE()
+				WHERE Code = @Code
+
+				SELECT Code, TipoDoc, 1 Success from credit.Ingresos where Code = @Code
+			END
+		END TRY
+		BEGIN CATCH
+			DECLARE @error34 varchar(550) 
+			SELECT @error34 = '[[' + ERROR_MESSAGE() + ']]'
+			SELECT @error34 +=' [[Procedure: ' + ERROR_PROCEDURE() + ']]'
+			
+			RAISERROR (@error34 , 11, 1)
+			ROLLBACK
+		END CATCH	
+	END
+
+	---INSERT FOLIO POR SUCURSAL SOLICITO JACQUELINE  20-7-2015
+	IF @TipoConsulta = 2
+	BEGIN
+		BEGIN TRY
+			SET @Jefa = ISNULL((SELECT U_Cobranza FROM [SBOCTRZ].dbo.OCRD WHERE CardCode = @Cliente), '')
+			IF @Prefijo IS NULL
+				SET @Prefijo = ''
+
+			SET @Code = ISNULL((SELECT MAX(Code) From credit.Ingresos Where CodSucursal = @CodSucursal)+1, (SELECT Folios From #Folios Where CodSucursal = @CodSucursal))
+ 			
+			--IF NOT EXISTS(SELECT * FROM credit.Ingresos1 WHERE Code = @Folio)
+			--BEGIN
+				INSERT INTO credit.Ingresos 
+				([Code],[CreateDate],[UpdateDate],[Usuario],[CardCode],[JefaCobranza],[MetodoPago],[FechaCorte],[Monto],[Prefijo],[Folio],[Cancelado]
+				,[Sucursal],[Observaciones],[FechaDeposito],[NoCheque],[Banco],[Agente],[U_SegDto],[nAprobacion],[nProteccion],[nAutorizacion],tiporecibo, Currency, CodSucursal)
+				VALUES (@Code, GETDATE(), GETDATE(), @Usuario, @Cliente, @Jefa, @MetodoPago, GETDATE(), @Monto, @Prefijo, @Folio, @Cancelado
+				, @Sucursal,@Obervaciones, @FechaDeposito, @NoCheque, @Banco, @Agente, NULL, @NumAprobacion, @NumProteccion, @NumAutorizacion,@TipoRecibo, @Currency, @CodSucursal)
+				
+				SELECT @Code
+			--END				
+				
+		END TRY
+		BEGIN CATCH
+			DECLARE @error324 varchar(550) 
+			SELECT @error324 = '[[' + ERROR_MESSAGE() + ']]'
+			SELECT @error324 +=' [[Procedure: ' + ERROR_PROCEDURE() + ']]'
+			
+			RAISERROR (@error324 , 11, 1)
+			ROLLBACK
+		END CATCH	
+	END
+	
+	IF @TipoConsulta = 3 --CambiosPrerecibo
+	BEGIN
+		BEGIN TRY	
+			IF NOT EXISTS(SELECT Code FROM credit.IngresosDetalle WHERE Code = @Folio AND Factura = @Factura)
+			BEGIN
+				INSERT INTO credit.IngresosDetalle VALUES(@Folio, @LineNum, @Factura, @Monto,@TipoRecibo)
+			END
+			ELSE 
+			BEGIN 
+				UPDATE credit.IngresosDetalle SET Monto = @Monto WHERE Code = @Folio AND Factura = @Factura
+			END
+		END TRY
+		BEGIN CATCH
+			DECLARE @error19 varchar(550) 
+			SELECT @error19 = '[[' + ERROR_MESSAGE() + ']]'
+			SELECT @error19 +=' [[Procedure: ' + ERROR_PROCEDURE() + ']]'
+			
+			RAISERROR (@error19 , 11, 1)
+			ROLLBACK
+		END CATCH	
+	END
+
+	IF @TipoConsulta = 5 --CambiosPrerecibo
+	BEGIN
+		 SET @QRY = '
+			SELECT  
+			*
+			FROM(	
+				SELECT
+				A.Code Folio
+				, IIF(A.TipoRecibo = 2, ''N/A'',  B.CardCode) Cliente
+				, IIF(A.TipoRecibo = 2, ''Exceso de Viatico'',  B.CardName) Nombre
+				, ISNULL(B.U_Cobranza, '''') [Jefa de Cobranza]
+				, C.PymntGroup [Condicion de credito]
+				, CASE
+						WHEN A.TipoDoc = ''PRCB'' THEN A.MetodoPago + '' (Pre-recibo)''
+						WHEN ISNULL(A.TipoDoc,''RCB'') = ''RCB'' THEN A.MetodoPago
+					END[Metodo de pago]
+				, A.FechaCorte [Fecha de Corte]
+				, A.Monto
+				, A.Folio [Folio físico]
+				, A.Agente
+				, CASE 
+						WHEN A.MetodoPago like ''%Tarjeta%'' then CAST(A.nAprobacion AS NVARCHAR)
+						WHEN A.MetodoPago in (''Cheque Protegido'', ''Cheque Posfechado'') then A.NoCheque
+					END [No. Aprobación/Cheque]
+				, A.FechaDeposito [Fecha de depósito]
+				, A.NoPago [NoPago]
+				, ISNULL(A.TipoDoc, ''RCB'') TipoDoc
+				, D.slpName Responsable
+				FROM 
+					credit.Ingresos A
+					LEFT JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+					LEFT JOIN [SBOCTRZ].DBO.OCTG C ON C.GroupNum = B.GroupNum
+					LEFT JOIN SBOCTRZ.DBO.OSLP D ON A.slpResponsable = D.SlpCode and D.U_Valido = 1 
+				WHERE 
+					A.FechaCorte BETWEEN '''+ CAST(@Desde AS VARCHAR) + ''' AND ''' + CAST(@Hasta AS VARCHAR) +'''
+					AND A.Cancelado IS NULL'
+
+		IF @Sucursal = '''''Puebla (Caja)''''' BEGIN SET @QRY+=' 
+					AND A.Agente IN (''Caja Puebla'')
+		'
+		END
+		ELSE IF @CodSucursal <> '0'
+		BEGIN
+			SET @QRY+=' 
+					AND A.CodSucursal in (' + @CodSucursal + ') 
+					AND A.Agente <> ''Caja Puebla''
+					OR (A.FechaCorte BETWEEN '''+ CAST(@Desde AS VARCHAR) + ''' AND ''' + CAST(@Hasta AS VARCHAR) +'''
+						AND A.Agente = ''Caja Puebla'' 
+						AND ''' + @Sucursal + ''' like ''%Puebla (Caja)%''
+						AND A.Cancelado IS NULL
+					)
+			'
+		END
+			
+		SET @QRY+=' 
+				UNION ALL
+				SELECT 
+					NULL Factura
+					, NULL Cliente
+					, NULL Nombre
+					, ''TOTAL:'' [Jefa de Cobranza]
+					, NULL [Condición de crédito]
+					, CASE
+						WHEN A.TipoDoc = ''PRCB'' THEN A.MetodoPago + '' (Pre-recibo)''
+						WHEN ISNULL(A.TipoDoc,''RCB'') = ''RCB'' THEN A.MetodoPago
+						END + '' TOTAL:'' [Método de pago]
+					, NULL [Fecha de Corte]
+					, SUM(A.Monto) Monto
+					, NULL Folio
+					, NULL Agente
+					, NULL [No. Aprobación/Cheque]
+					, NULL [Fecha de depósito]
+					, NULL [NoPago]
+					, ISNULL(TipoDoc, ''RCB'') TipoDoc
+					, NULL Responsable
+				FROM 
+					credit.Ingresos A
+					LEFT JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+				WHERE 
+					A.FechaCorte BETWEEN '''+ CAST(@Desde AS VARCHAR) + ''' AND ''' + CAST(@Hasta AS VARCHAR) +'''
+					AND A.Cancelado IS NULL
+		'
+		IF @Sucursal = '''''Puebla (Caja)''''' BEGIN SET @QRY+=' 
+					AND A.Agente IN (''Caja Puebla'')
+		'
+		END
+		ELSE IF @CodSucursal <> '0' BEGIN SET @QRY+=' 
+					AND A.CodSucursal in (' + @CodSucursal + ') 
+					AND A.Agente <> ''Caja Puebla''
+					OR (	
+						A.FechaCorte BETWEEN '''+ CAST(@Desde AS VARCHAR) + ''' AND ''' + CAST(@Hasta AS VARCHAR) +'''
+						AND A.Agente = ''Caja Puebla'' AND ''' + @Sucursal + ''' like ''%Puebla (Caja)%''
+						AND A.Cancelado IS NULL
+					)
+		'
+		END
+		SET @QRY+=' 
+				GROUP BY A.MetodoPago, A.TipoDoc
+			)T1
+			ORDER BY TipoDoc, [Metodo de pago],  Folio																				 
+		'																													 
+
+		EXEC(@QRY)
+	END
+	
+	--REPORTE ADMINISTRADORES
+	IF @TipoConsulta = 6
+	BEGIN
+		IF @Jefa = 'TODAS'
+		BEGIN
+			SELECT 
+				*
+			FROM(	
+				SELECT 
+					A.Code Folio,
+					B.CardCode Cliente,
+					B.CardName Nombre,
+					B.U_Cobranza [Jefa de Cobranza],
+					C.PymntGroup [Condición de crédito],
+					A.MetodoPago [Método de pago],
+					A.FechaCorte [Fecha de Corte],
+					A.Monto,
+					A.Prefijo,
+					A.Folio [Folio físico],
+					A.Agente,
+					A.Cancelado
+				FROM credit.Ingresos A
+					INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+					INNER JOIN [SBOCTRZ].DBO.OCTG C ON C.GroupNum = B.GroupNum
+				WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+				UNION ALL
+				SELECT 
+					NULL Factura,
+					NULL Cliente,
+					NULL Nombre,
+					B.U_Cobranza + ' TOTAL:' [Jefa de Cobranza],
+					NULL [Condición de crédito],
+					NULL [Método de pago],
+					NULL [Fecha de Corte],
+					SUM(A.Monto) Monto,
+					NULL Prefijo,
+					NULL Folio,
+					NULL Agente,
+					NULL Cancelado
+				FROM credit.Ingresos A
+					INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+				WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+				GROUP BY B.U_Cobranza
+			UNION ALL
+			SELECT 
+				NULL Factura,
+				NULL Cliente,
+				NULL Nombre,
+				B.U_Cobranza [Jefa de Cobranza],
+				NULL [Condición de crédito],
+				A.MetodoPago + ' TOTAL:' [Método de pago],
+				NULL [Fecha de Corte],
+				SUM(A.Monto) Monto,
+				NULL Prefijo,
+				NULL Folio,
+				NULL Agente,
+				NULL Cancelado
+			FROM credit.Ingresos A
+				INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+			WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+			GROUP BY A.MetodoPago, B.U_Cobranza )T1
+		ORDER BY [Jefa de Cobranza], [Método de pago], Cliente
+		END
+		
+		IF @Jefa <> 'TODAS'
+		BEGIN
+			SELECT 
+				*
+			FROM(	
+				SELECT	
+					A.Code Folio,
+					B.CardCode Cliente,
+					B.CardName Nombre,
+					B.U_Cobranza [Jefa de Cobranza],
+					C.PymntGroup [Condición de crédito],
+					A.MetodoPago [Método de pago],
+					A.FechaCorte [Fecha de Corte],
+					A.Monto,
+					A.Prefijo,
+					A.Folio [Folio físico],
+					A.Agente,
+					A.Cancelado
+				FROM credit.Ingresos A
+					INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+					INNER JOIN [SBOCTRZ].DBO.OCTG C ON C.GroupNum = B.GroupNum
+				WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+					AND B.U_Cobranza = @Jefa
+				UNION ALL
+				SELECT 
+					NULL Factura,
+					NULL Cliente,
+					NULL Nombre,
+					B.U_Cobranza + ' TOTAL:' [Jefa de Cobranza],
+					NULL [Condición de crédito],
+					NULL [Método de pago],
+					NULL [Fecha de Corte],
+					SUM(A.Monto) Monto,
+					NULL Prefijo,
+					NULL Folio,
+					NULL Agente,
+					NULL Cancelado
+				FROM credit.Ingresos A
+					INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+				WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+					AND B.U_Cobranza = @Jefa
+				GROUP BY B.U_Cobranza
+				UNION ALL
+				SELECT 
+					NULL Factura,
+					NULL Cliente,
+					NULL Nombre,
+					B.U_Cobranza [Jefa de Cobranza],
+					NULL [Condición de crédito],
+					A.MetodoPago + ' TOTAL:' [Método de pago],
+					NULL [Fecha de Corte],
+					SUM(A.Monto) Monto,
+					NULL Prefijo,
+					NULL Folio,
+					NULL Agente,
+					NULL Cancelado
+				FROM credit.Ingresos A
+					INNER JOIN [SBOCTRZ].DBO.OCRD B ON A.CardCode = B.CardCode
+				WHERE A.FechaCorte BETWEEN @Desde AND @Hasta
+					AND B.U_Cobranza = @Jefa
+				GROUP BY A.MetodoPago, B.U_Cobranza)T1
+			ORDER BY [Jefa de Cobranza], [Método de pago], Cliente
+		END
+	END
+	
+	--DELETE
+	IF @TipoConsulta = 7
+	BEGIN
+		BEGIN TRY
+			DELETE FROM credit.Ingresos WHERE Code = @Code				
+		END TRY
+		BEGIN CATCH
+			DECLARE @error7 varchar(550) 
+			SELECT @error7 = '[[' + ERROR_MESSAGE() + ']]'
+			SELECT @error7 +=' [[Procedure: ' + ERROR_PROCEDURE() + ']]'
+			
+			RAISERROR (@error7 , 11, 1)
+			ROLLBACK
+		END CATCH	
+	END
+
+	IF @TipoConsulta = 8
+	BEGIN
+		BEGIN TRY
+			IF NOT EXISTS (SELECT DOCNUM FROM SBOCTRZ.DBO.OINV WHERE DocNum = @DocNum) RAISERROR('La factura ingresada no existe', 11, 1)
+			IF NOT EXISTS (SELECT DOCNUM FROM SBOCTRZ.DBO.OINV WHERE DocNum = @DocNum and CardCode = @Cliente) RAISERROR('La factura no corresponde al cliente ingresado', 11, 1)
+
+			SELECT
+				CASE 
+					WHEN DocCur = 'USD' THEN DocTotalFC 
+					ELSE DocTotal 
+				END - 
+				CASE 
+					WHEN DocCur = 'USD' THEN PaidFC 
+					ELSE PaidToDate 
+				END Saldo
+				, B.NcReal [NC_DE]
+				, B.NcPP [NC_PP]
+			FROM 
+				SBOCTRZ.dbo.OINV A
+				JOIN fu_sales_CalcularDiferencia_NC(@DocNum) B ON A.DocNum = B.Factura
+			WHERE DocNum = @DocNum AND CardCode = @Cliente
+		END TRY
+		BEGIN CATCH
+			SET @Error = (SELECT ERROR_MESSAGE() + ' // SP: up_credit_Ingresos // Consulta: ' + CAST(@TipoConsulta AS VARCHAR(50)) AS ErrorMessage);
+			RAISERROR(@Error, 11, 1);
+		END CATCH
+	END
+	
+	--AGENTES
+	IF @TipoConsulta = 10
+	BEGIN
+		select Nombre Codigo, Nombre Nombre from hnt.Usuarios where UserID = @UserID 
+	END
+	
+	IF @TipoConsulta = 14 --CambiosPrerecibo
+	BEGIN	
+		SET @QRY = '
+			SELECT 
+					CASE 
+						WHEN A.TipoDoc = ''RCB'' AND ISNULL(A.ProvPrerecibo, ''N'') = ''N'' THEN CAST(A.Code AS VARCHAR(15))
+						WHEN A.TipoDoc = ''PRCB'' AND ISNULL(A.ProvPrerecibo, ''N'') = ''N'' THEN ''PRE-'' + CAST(A.Code AS VARCHAR(15))
+						WHEN A.TipoDoc = ''RCB'' AND ISNULL(A.ProvPrerecibo, ''N'') <> ''N'' THEN CAST(A.Code AS VARCHAR(15))
+						WHEN A.TipoDoc IS NULL THEN CAST(A.Code AS VARCHAR(15))
+						ELSE CAST(A.Code AS VARCHAR(15))
+					  END [Folio]
+				, A.FechaCorte [Fecha de recibo]
+				, A.CardCode [Cliente]
+				, B.CardName [Nombre]
+				, A.Sucursal
+				, Monto [Importe]
+				, A.Agente
+				, A.MetodoPago [Método de pago]
+				, CASE 
+					WHEN A.Cancelado = 1 THEN ''Cancelado'' 
+					ELSE ''Activo'' 
+				  END Estatus
+			FROM 
+				credit.Ingresos A
+				LEFT JOIN [SBOCTRZ].dbo.OCRD B ON A.CardCode collate database_default = B.CardCode
+			WHERE 
+				0 = 0
+		'
+			
+		IF ISNULL(@Code, '0') <> '0' SET @QRY += ' 
+				AND A.Code = ''' + CAST(@Code AS NVARCHAR(25)) + '''
+		'
+		ELSE
+		BEGIN
+			IF @Cliente <> '' SET @QRY += ' 
+				AND A.CardCode = '''+ @Cliente + '''
+			'
+			IF ISNULL(@Sucursal, '')  <> '' SET @QRY += ' 
+				AND A.Sucursal = '''+ @Sucursal + '''
+			' 
+			SET @QRY += ' 
+				AND A.FechaCorte BETWEEN @Desde AND @Hasta 
+			'
+		END
+
+		SET @QRY += '
+			ORDER BY Folio, Sucursal
+		'
+		
+		SET @Params = '@Desde Date, @Hasta DATE'
+		EXEC sp_executesql @QRY, @Params, @Desde, @Hasta
+	END
+	
+	--CANCELAR RECIBOS
+	IF @TipoConsulta = 15
+	BEGIN
+		Update credit.Ingresos SET Cancelado = 1, UpdateDate = GETDATE() Where Code = @Code 
+	END
+	
+	--LISTA DE BANCOS
+	IF @TipoConsulta = 16
+	BEGIN
+		select distinct BankName Nombre from [SBOCTRZ].dbo.odsc order by BankName
+	END
+	
+	IF @TipoConsulta = 17
+	BEGIN
+		select * FROM credit.IngresosDetalle WHERE Code = @Code
+	END
+	
+	IF @TipoConsulta = 18
+	BEGIN
+		DECLARE @QRY1 NVARCHAR(MAX), @paramDefinition1 NVARCHAR(MAX)
+		SET @QRY1 = ' 
+		SELECT 
+			Sucursal, 
+			ti.CardCode[Clave], 
+			oc.CardName[Nombre], 
+			oc.U_Cobranza[Jefa Cobranza],
+			oc.Currency[Moneda],
+			Code[FolioRecibo], 
+			Banco[BancoEmisor], 
+			Monto[Importe], 
+			NoCheque, 
+			MetodoPago[TipoCheque],
+			FechaCorte[FechaRecibo], 
+			ti.FechaDeposito[Fecha Deposito], 
+			dFechaDepReal[FechaDepReal], 
+			sBancoDeposito[BancoDeposito], 
+			ISNULL(bRegistrado,0)[Registrado]
+		FROM credit.Ingresos ti
+			inner join [SBOCTRZ].dbo.OCRD oc on ti.CardCode = oc.CardCode
+		WHERE MetodoPago in(''Cheque Protegido'',''Cheque Posfechado'')
+			AND ti.FechaCorte BETWEEN @Desde AND @Hasta
+		'
+
+		--IF @Sucursal = 'EdoMex' SET @Sucursal = 'Estado de México'
+
+		IF @Sucursal <> '0'
+			SET @QRY1 += 'AND CodSucursal = @Sucursal'
+
+		SET @paramDefinition1 = '@Desde DATETIME, @Hasta DATETIME, @Sucursal varchar(255)'
+			EXEC sp_executesql @QRY1, @paramDefinition1, @Desde, @Hasta, @Sucursal
+		
+	END
+	
+	IF @TipoConsulta = 19
+	BEGIN
+		IF YEAR(@FechaDeposito) = 1900
+			SET @FechaDeposito = NULL
+
+		UPDATE credit.Ingresos
+		SET 
+		 dFechaDepReal = @FechaDeposito
+		,sBancoDeposito = @Banco
+		,bRegistrado = @Registrado
+		WHERE Code = @Code
+
+	END
+	
+	--LISTA DE BANCOS
+	IF @TipoConsulta = 20
+	BEGIN
+		select distinct BankName Nombre from [SBOCTRZ].dbo.odsc 
+		where BankName in ('BANAMEX', 'BBVA BANCOMER')
+		order by BankName
+	END
+	
+	IF @TipoConsulta <> 12
+	BEGIN
+		DROP TABLE #Folios
+	END
+
+	IF @TipoConsulta = 21
+	BEGIN
+		update credit.ingresos 
+		set NoPago = @NoPago where Code = @Folio
+	END
+
+	IF @TipoConsulta = 22 --CambiosPrerecibo
+	BEGIN
+		SET @Qry = '
+			SELECT 
+				CAST(A.SlpCode AS INT) Codigo
+				, CONCAT(A.SlpCode, '' | '', B.Nombre) Nombre
+				, B.Correo
+			FROM
+				SBOCTRZ.DBO.OSLP A 
+				JOIN hnt.Usuarios B ON A.SlpCode = b.SlpCode and A.U_Valido = 1 AND A.SlpCode <> -1
+		'
+		IF @Rol NOT IN (1,2) BEGIN SET @Qry += '
+			WHERE  
+			A.Memo = @Almacen 
+		' END
+
+		SET @Params = '@Almacen VARCHAR(10)'
+		EXEC sp_executesql @QRY, @Params, @Almacen
+	END
+
+	IF @TipoConsulta = 23
+	BEGIN
+		UPDATE credit.Ingresos SET RutaDoc = @Ruta WHERE Code = @Code
+		SELECT 'Documento almacenado' Msj
+	END
+
+	IF @TipoConsulta = 24
+	BEGIN
+		SELECT @CodSucursal = Almacen FROM HNT.Usuarios WHERE UserID = @Usuario
+		
+		IF @Opc = 1
+		BEGIN
+			SET @QRY = '
+				SELECT 
+					A.Code
+					, CONCAT(''PRE-'',CAST(A.Code AS VARCHAR(15))) [Folio]
+					, FORMAT(A.CreateDate, ''yyyy-MM-dd'') [Fecha_de_Creacion]
+					, CASE 
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NOT NULL THEN A.MetodoPago + ''(Por confirmar)''
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NULL THEN A.MetodoPago + ''(Por depositar)''
+						ELSE A.MetodoPago
+						END [Metodo_de_pago]
+					, B.CardCode [Codigo_de_cliente]
+					, B.CardName [Nombre_de_cliente]
+					, A.Monto
+				FROM
+					credit.Ingresos A
+					JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode and A.TipoDoc = ''PRCB''
+				WHERE
+					A.Cancelado IS NULL
+			'
+
+			IF @Rol NOT IN (1, 2) BEGIN SET @QRY += '
+					AND A.CodSucursal = @CodSucursal
+			' END
+
+			set @QRY += '
+				ORDER BY A.CreateDate DESC
+			'
+
+			print @QRY
+			print @CodSucursal
+
+			SET @Params = '@CodSucursal VARCHAR(10)'
+			EXEC sp_executesql @QRY, @Params, @CodSucursal
+			SELECT 'Code' HiddenColumns
+		END
+		ELSE IF @Opc = 2
+		BEGIN
+			SELECT 
+				FechaCorte
+				, CodSucursal
+				, Currency
+				, CONCAT('PRE-', Code) Code
+				, CardCode
+				, Monto
+				, Observaciones
+				, MetodoPago
+				, Prefijo
+				, Folio
+				, Banco
+				, FechaDeposito
+				, NoCheque
+				, nAprobacion
+				, nAutorizacion
+				, nProteccion
+				, slpResponsable
+				, correoResponsable
+				, dateCorreo
+			FROM credit.Ingresos WHERE CODE = @Code
+			
+			CREATE TABLE #TblCalculoNC(
+				Factura varchar(50)
+				, Cliente varchar(50)
+				, NcReal decimal(18,4)
+				, NcPP decimal(18,4)
+			)
+		
+			SELECT C.Factura
+			INTO #TblFacturas
+			FROM SBOCTRZ.dbo.OINV A JOIN credit.IngresosDetalle C ON A.DocNum = C.Factura
+			WHERE C.Code = @Code
+
+			DECLARE Facturas CURSOR FOR SELECT Factura FROM #TblFacturas
+			OPEN Facturas
+			FETCH NEXT FROM Facturas INTO @Factura
+			WHILE @@fetch_status = 0
+			BEGIN
+				INSERT INTO #TblCalculoNC
+				SELECT Factura, Cliente, NcReal, NcPP 
+				FROM fu_sales_CalcularDiferencia_NC(@Factura)
+				FETCH NEXT FROM Facturas INTO @Factura
+			END
+			CLOSE Facturas
+			DEALLOCATE Facturas
+
+			SELECT
+				CAST(B.Factura AS INT) Factura
+				, '' Nombre
+				, CASE 
+					 WHEN DocCur = 'USD' THEN DocTotalFC 
+					 ELSE DocTotal 
+				  END - 
+				  CASE 
+					 WHEN DocCur = 'USD' THEN PaidFC 
+					 ELSE PaidToDate 
+				  END Saldo
+				, C.NcReal [NC_DE]
+				, C.NcPP [NC_PP]
+				, B.Monto [Importe]
+				, '' Mensaje
+			FROM 
+				SBOCTRZ.dbo.OINV A
+				JOIN credit.IngresosDetalle B ON A.DocNum = B.Factura AND B.Code <> 0 AND B.Code = @Code
+				JOIN #TblCalculoNC C ON B.Factura = C.Factura
+
+			SELECT '' HiddenColumns
+
+			DROP TABLE #TblFacturas
+			DROP TABLE #TblCalculoNC
+		END
+	END
+END
