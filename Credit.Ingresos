@@ -153,7 +153,7 @@ BEGIN
 					, Usuario = @Usuario
 					, TipoRecibo = @TipoRecibo
 					, MetodoPago = @MetodoPago
-					, FechaCorte = @FechaCorte
+					, FechaCorte = GETDATE()
 					, Monto = @Monto
 					, Observaciones = @Obervaciones
 					, Sucursal = @Sucursal
@@ -172,6 +172,7 @@ BEGIN
 					, correoResponsable = @correoResponsable
 					, DateCorreo = @DateCorreo
 					, ProvPrerecibo = 'Y'
+					, CreateDate = GETDATE()
 				WHERE Code = @Code
 
 				SELECT Code, TipoDoc, 1 Success from credit.Ingresos where Code = @Code
@@ -219,7 +220,6 @@ BEGIN
 		END CATCH	
 	END
 	
-	---INSERT FOLIO detalle POR SUCURSAL SOLICITO JACQUELINE  20-7-2015
 	IF @TipoConsulta = 3
 	BEGIN
 		BEGIN TRY	
@@ -495,20 +495,6 @@ BEGIN
 		END CATCH	
 	END
 
-	--VALIDACION FACTURA-CLIENTE
-	IF @TipoConsulta = -8
-	BEGIN
-		Select CASE WHEN DocCur = 'USD'
-				THEN DocTotalFC ELSE DocTotal END DocTotal,  
-
-			   CASE WHEN DocCur = 'USD'
-				THEN PaidFC ELSE PaidToDate END PaidToDate 
-		from SBOCTRZ.dbo.OINV 
-		where
-			DocNum = @Factura AND CardCode = @Cliente --AND DocStatus = 'O'	 
-		--Case when numatcard is null or numatcard = '' then DocNum else NumAtCard end = @Factura AND CardCode = @Cliente --AND DocStatus = 'O'
-	END
-
 	IF @TipoConsulta = 8
 	BEGIN
 		BEGIN TRY
@@ -711,24 +697,43 @@ BEGIN
 
 	IF @TipoConsulta = 24
 	BEGIN
+		SELECT @CodSucursal = Almacen FROM HNT.Usuarios WHERE UserID = @Usuario
+		
 		IF @Opc = 1
 		BEGIN
-			SELECT 
-				A.Code
-				, CONCAT('PRE-',CAST(A.Code AS VARCHAR(15))) [Folio]
-				, FORMAT(A.CreateDate, 'yyyy-MM-dd') [Fecha_de_Creacion]
-				, CASE 
-					WHEN A.MetodoPago = 'Transf y/o Dep del cliente' AND A.RutaDoc IS NOT NULL THEN A.MetodoPago + '(Por confirmar)'
-					WHEN A.MetodoPago = 'Transf y/o Dep del cliente' AND A.RutaDoc IS NULL THEN A.MetodoPago + '(Por depositar)'
-					ELSE A.MetodoPago
-				  END [Metodo_de_pago]
-				, B.CardCode [Codigo_de_cliente]
-				, B.CardName [Nombre_de_cliente]
-				, A.Monto
-			FROM
-				credit.Ingresos A
-				JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode and A.TipoDoc = 'PRCB'
-			ORDER BY A.CreateDate DESC
+			SET @QRY = '
+				SELECT 
+					A.Code
+					, CONCAT(''PRE-'',CAST(A.Code AS VARCHAR(15))) [Folio]
+					, FORMAT(A.CreateDate, ''yyyy-MM-dd'') [Fecha_de_Creacion]
+					, CASE 
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NOT NULL THEN A.MetodoPago + ''(Por confirmar)''
+						WHEN A.MetodoPago = ''Transf y/o Dep del cliente'' AND A.RutaDoc IS NULL THEN A.MetodoPago + ''(Por depositar)''
+						ELSE A.MetodoPago
+						END [Metodo_de_pago]
+					, B.CardCode [Codigo_de_cliente]
+					, B.CardName [Nombre_de_cliente]
+					, A.Monto
+				FROM
+					credit.Ingresos A
+					JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode and A.TipoDoc = ''PRCB''
+				WHERE
+					A.Cancelado IS NULL
+			'
+
+			IF @Rol NOT IN (1, 2) BEGIN SET @QRY += '
+					AND A.CodSucursal = @CodSucursal
+			' END
+
+			set @QRY += '
+				ORDER BY A.CreateDate DESC
+			'
+
+			print @QRY
+			print @CodSucursal
+
+			SET @Params = '@CodSucursal VARCHAR(10)'
+			EXEC sp_executesql @QRY, @Params, @CodSucursal
 			SELECT 'Code' HiddenColumns
 		END
 		ELSE IF @Opc = 2
