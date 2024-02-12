@@ -1,0 +1,358 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_sap_SDKBusinessPartner]    Script Date: 12/02/2024 03:11:40 p. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- =============================================
+-- Author:		Luis Olivos
+-- Create date: 2017-12-21
+-- =============================================
+ALTER PROCEDURE [dbo].[up_sap_SDKBusinessPartner]
+	@TipoConsulta			INT, 
+	@CardType				VARCHAR(1) = NULL,
+	@CardCode				VARCHAR(15) = NULL,
+	@CardName				VARCHAR(100) = NULL,
+	@CardForeignName		VARCHAR(10) = NULL,
+    @GroupCode				INT = NULL,
+	@Currency				VARCHAR(3) = NULL,
+	@FederalTaxID			VARCHAR(15) = NULL,
+    @Balance				DECIMAL(18, 4) = NULL,
+	@DNotesBal				DECIMAL(18, 4) = NULL,
+    @DebitorAccount			VARCHAR(15) = NULL,
+
+	@Phone1					VARCHAR(MAX) = NULL,
+	@Phone2					VARCHAR(MAX) = NULL,
+	@Cellular				VARCHAR(100) = NULL,
+	@U_Correo				VARCHAR(500) = NULL,
+	@Industry				INT = NULL,
+    @CompanyPrivate			VARCHAR(1) = NULL,
+    @UnifiedFederalTaxID	VARCHAR(150) = NULL,
+    @SalesPersonCode		INT = NULL,
+    @Frozen					VARCHAR(1) = NULL,
+	@U_B1SYS_Main_Usage		VARCHAR(5) = NULL,
+
+    @Name					VARCHAR(100) = NULL,
+    @FirstName				VARCHAR(100) = NULL,
+    @LastName				VARCHAR(100) = NULL,
+    @Address				VARCHAR(100) = NULL,
+    @Tel1					VARCHAR(100) = NULL,
+    @Tel2					VARCHAR(100) = NULL,
+    @Cellolar				VARCHAR(100) = NULL,
+    @E_MaIl					VARCHAR(100) = NULL,
+	@Active					VARCHAR(1) = NULL,
+
+    @AdresType				VARCHAR(1) = NULL,
+    @Address2				VARCHAR(100) = NULL,
+    @Street					VARCHAR(100) = NULL,
+    @City					VARCHAR(100) = NULL,
+    @ZipCode				VARCHAR(100) = NULL,
+    @County					VARCHAR(100) = NULL,
+    @State					VARCHAR(100) = NULL,
+    @Country				VARCHAR(100) = NULL,
+    @StreetNo				VARCHAR(100) = NULL,
+    @TaxCode				VARCHAR(100) = NULL,
+    @Building				VARCHAR(100) = NULL,
+
+    @PayTermsGrpCode		INT = NULL,
+    @U_CPago				VARCHAR(100) = NULL,
+    @U_MPAGO2				VARCHAR(100) = NULL,
+    @U_MetPago				VARCHAR(10) = NULL,
+    @PriceListNum			INT = NULL,
+    @U_CUENTA				VARCHAR(100) = NULL,
+    @U_RefPago				VARCHAR(100) = NULL,
+    @U_Condiciones			VARCHAR(100) = NULL,
+    @CreditLimit			DECIMAL(18, 4) = NULL,
+	@U_CreditLine			VARCHAR(100) = NULL,
+    @U_CreditLineS			VARCHAR(100) = NULL,
+
+	@QRYGROUP1				VARCHAR(1) = 'N',		 @QRYGROUP2				VARCHAR(1) = 'N',
+	@QRYGROUP3				VARCHAR(1) = 'N',		 @QRYGROUP4				VARCHAR(1) = 'N',
+	@QRYGROUP5				VARCHAR(1) = 'N',		 @QRYGROUP6				VARCHAR(1) = 'N',
+	@QRYGROUP7				VARCHAR(1) = 'N',		 @QRYGROUP8				VARCHAR(1) = 'N',
+	@QRYGROUP9				VARCHAR(1) = 'N',		 @QRYGROUP10			VARCHAR(1) = 'N',
+	@QRYGROUP11				VARCHAR(1) = 'N',		 @QRYGROUP12			VARCHAR(1) = 'N',
+	@QRYGROUP13				VARCHAR(1) = 'N',		 @QRYGROUP14			VARCHAR(1) = 'N',
+	@QRYGROUP15				VARCHAR(1) = 'N',		 @QRYGROUP16			VARCHAR(1) = 'N',
+	@QRYGROUP17				VARCHAR(1) = 'N',		 @QRYGROUP18			VARCHAR(1) = 'N',
+	@QRYGROUP19				VARCHAR(1) = 'N',		 @QRYGROUP20			VARCHAR(1) = 'N',
+	@QRYGROUP21				VARCHAR(1) = 'N',		 @QRYGROUP22			VARCHAR(1) = 'N',
+	@QRYGROUP23				VARCHAR(1) = 'N',		 @QRYGROUP24			VARCHAR(1) = 'N',
+	@QRYGROUP25				VARCHAR(1) = 'N',		 @QRYGROUP26			VARCHAR(1) = 'N',
+	@QRYGROUP27				VARCHAR(1) = 'N',		 @QRYGROUP28			VARCHAR(1) = 'N',
+	@QRYGROUP29				VARCHAR(1) = 'N',		 @QRYGROUP30			VARCHAR(1) = 'N',
+	@QRYGROUP31				VARCHAR(1) = 'N',		 @QRYGROUP32			VARCHAR(1) = 'N',
+	@QRYGROUP33				VARCHAR(1) = 'N',		 @QRYGROUP34			VARCHAR(1) = 'N',
+	@QRYGROUP35				VARCHAR(1) = 'N',		 @QRYGROUP36			VARCHAR(1) = 'N',
+	@QRYGROUP37				VARCHAR(1) = 'N',		 @QRYGROUP38			VARCHAR(1) = 'N',
+	@QRYGROUP39				VARCHAR(1) = 'N',		 @QRYGROUP40			VARCHAR(1) = 'N',
+	@QRYGROUP41				VARCHAR(1) = 'N',		 @QRYGROUP42			VARCHAR(1) = 'N',
+	@QRYGROUP43				VARCHAR(1) = 'N',		 @QRYGROUP44			VARCHAR(1) = 'N',
+	@QRYGROUP45				VARCHAR(1) = 'N',		 @QRYGROUP46			VARCHAR(1) = 'N',
+	@QRYGROUP47				VARCHAR(1) = 'N',		 @QRYGROUP48			VARCHAR(1) = 'N',
+	@QRYGROUP49				VARCHAR(1) = 'N',		 @QRYGROUP50			VARCHAR(1) = 'N',
+	@QRYGROUP51				VARCHAR(1) = 'N',		 @QRYGROUP52			VARCHAR(1) = 'N',
+	@QRYGROUP53				VARCHAR(1) = 'N',		 @QRYGROUP54			VARCHAR(1) = 'N',
+	@QRYGROUP55				VARCHAR(1) = 'N',		 @QRYGROUP56			VARCHAR(1) = 'N',
+	@QRYGROUP57				VARCHAR(1) = 'N',		 @QRYGROUP58			VARCHAR(1) = 'N',
+	@QRYGROUP59				VARCHAR(1) = 'N',		 @QRYGROUP60			VARCHAR(1) = 'N',
+	@QRYGROUP61				VARCHAR(1) = 'N',		 @QRYGROUP62			VARCHAR(1) = 'N',
+	@QRYGROUP63				VARCHAR(1) = 'N',		 @QRYGROUP64			VARCHAR(1) = 'N',
+	
+    @U_TipoVisita			VARCHAR(5) = NULL,
+    @U_Zona					VARCHAR(20) = NULL,
+    @FreeText				VARCHAR(500) = NULL,
+    @Notes					VARCHAR(500) = NULL,
+	@tipo					VARCHAR(50) = NULL,
+	@Block					VARCHAR(50) = NULL,
+	@U_Autorizado			VARCHAR(5) = NULL,
+	@UserId					INT = NULL
+	/**************************************************************************/
+	,@IntrntSite			VARCHAR(100) = NULL
+	,@Fax					VARCHAR(100) = NULL
+	,@BankCode				VARCHAR(100) = NULL
+	,@DpmClear				VARCHAR(100) = NULL
+	,@WTLiable				VARCHAR(100) = NULL
+	,@VatGroup				VARCHAR(100) = NULL
+	,@U_VLGX_VIV			VARCHAR(100) = NULL
+	,@U_VLGX_HP				VARCHAR(100) = NULL
+	,@U_VLGX_PLC			VARCHAR(100) = NULL
+	,@U_MinimoCompra		VARCHAR(100) = NULL
+	,@U_Tipocompra			VARCHAR(100) = NULL
+	,@U_UnidCompra			VARCHAR(100) = NULL
+	--------------------------------------------------------------------------
+	,@Pager					VARCHAR(100) = NULL
+	,@MiddleName			VARCHAR(100) = NULL
+	,@U_Cobranza			varchar(100) = NULL
+	,@U_Canal   			varchar(100) = NULL
+	,@U_FechaCredito		varchar(100) = null
+	/************************************************************************/
+	,@U_CtaOrdenante		VARCHAR(50) = NULL
+	,@U_RfcEmisorCtaOrd		VARCHAR(13) = NULL
+	,@U_NomBancoOrdExt		VARCHAR(50) = NULL
+	,@U_RegimenFiscal		VARCHAR(10) = NULL
+
+	, @U_CColonia			NVARCHAR(4) = NULL
+	, @U_CLocalidad			NVARCHAR(2) = NULL
+	, @U_CMunicipio			NVARCHAR(3) = NULL
+	/***************************PABLO CUAUTLE COATL 03/08/2019********************************/
+	,@ID					INT = NULL
+	,@Nombre				VARCHAR(100)= NULL
+	,@ItemCode				VARCHAR(50)	= NULL
+	,@Foto					VARBINARY(MAX) = NULL
+	,@Rol				    INT	= NULL
+AS
+BEGIN
+	IF @TipoConsulta = 1
+	BEGIN
+		IF @Currency = '##' SET @Currency = 'USD'
+
+		IF NOT EXISTS (select * from SBOCTRZ.dbo.[@HNT_TIPOVISITA] WHERE Code = @U_TipoVisita)
+		BEGIN
+			 RAISERROR ('Valor no valido en Campo TipoVisita', 
+               16, -- Severity.  
+               1 -- State.  
+               );  
+		END
+
+		DELETE FROM sap.OCRD where CardCode = @CardCode
+		DELETE FROM sap.CRD1 where CardCode = @CardCode
+		DELETE FROM sap.OCPR where CardCode = @CardCode
+
+		IF NOT EXISTS(SELECT * FROM sap.OCRD WHERE CardCode = @CardCode)
+		BEGIN
+			INSERT INTO sap.OCRD(CardType, CardCode, CardName, CardFName, GroupCode, Currency, LicTradNum, DebPayAcct, Phone1, Phone2, Cellular, U_Correo, IndustryC, CmpPrivate, VatIdUnCmp, SlpCode, frozenFor, U_B1SYS_MainUsage,
+							 GroupNum, U_CPago, U_MPAGO2, U_MetPago, ListNum, U_CUENTA, U_RefPago, U_Condiciones, CreditLine, U_CreditLine, U_CreditLineS,
+							 U_TipoVisita, U_Zona, Free_Text,
+							 U_Autorizado, Balance, DNotesBal, BalanceFC, DNoteBalFC,
+							 QryGroup1,	QryGroup2,	QryGroup3,	QryGroup4,	QryGroup5,	QryGroup6,	QryGroup7,	QryGroup8,	QryGroup9,	QryGroup10,	QryGroup11,	QryGroup12,	QryGroup13,	QryGroup14,	QryGroup15,	QryGroup16,	QryGroup17,	QryGroup18,	QryGroup19,	QryGroup20,	QryGroup21,	QryGroup22,	QryGroup23,	QryGroup24,	QryGroup25,	QryGroup26,	QryGroup27,	QryGroup28,	QryGroup29,	QryGroup30,	QryGroup31,	QryGroup32,	QryGroup33,	QryGroup34,	QryGroup35,	QryGroup36,	QryGroup37,	QryGroup38,	QryGroup39,	QryGroup40,	QryGroup41,	QryGroup42,	QryGroup43,	QryGroup44,	QryGroup45,	QryGroup46,	QryGroup47,	QryGroup48,	QryGroup49,	QryGroup50,	QryGroup51,	QryGroup52,	QryGroup53,	QryGroup54,	QryGroup55,	QryGroup56,	QryGroup57,	QryGroup58,	QryGroup59,	QryGroup60,	QryGroup61,	QryGroup62,	QryGroup63,	QryGroup64,
+							 CreateDate, UpdateDate, UserSign, U_Cobranza, U_Canal, U_FechaCredito, U_CtaOrdenante, U_RfcEmisorCtaOrd, U_NomBancoOrdExt, Fax, U_RegimenFiscal 
+ )
+			VALUES(@CardType, @CardCode, @CardName, @CardForeignName, @GroupCode, @Currency, @FederalTaxID, @DebitorAccount, @Phone1, @Phone2, @Cellular, @U_Correo, @Industry, @CompanyPrivate, @UnifiedFederalTaxID, @SalesPersonCode, @Frozen, @U_B1SYS_Main_Usage,
+				   @PayTermsGrpCode, @U_CPago, @U_MPAGO2, @U_MetPago, @PriceListNum, @U_CUENTA, @U_RefPago, @U_Condiciones, @CreditLimit, @U_CreditLine, @U_CreditLineS,
+				   @U_TipoVisita, @U_Zona, @FreeText,
+				   @U_Autorizado, 0, 0, 0, 0,
+				   @QryGroup1,	@QryGroup2,	@QryGroup3,	@QryGroup4,	@QryGroup5,	@QryGroup6,	@QryGroup7,	@QryGroup8,	@QryGroup9,	@QryGroup10, @QryGroup11, @QryGroup12, @QryGroup13,	@QryGroup14, @QryGroup15, @QryGroup16, @QryGroup17,	@QryGroup18, @QryGroup19, @QryGroup20, @QryGroup21,	@QryGroup22, @QryGroup23, @QryGroup24, @QryGroup25,	@QryGroup26, @QryGroup27, @QryGroup28, @QryGroup29,	@QryGroup30, @QryGroup31, @QryGroup32, @QryGroup33,	@QryGroup34, @QryGroup35,@QryGroup36,	@QryGroup37,	@QryGroup38,	@QryGroup39,	@QryGroup40,	@QryGroup41,	@QryGroup42,	@QryGroup43,	@QryGroup44, @QryGroup45,	@QryGroup46,	@QryGroup47,	@QryGroup48,	@QryGroup49,	@QryGroup50,	@QryGroup51,	@QryGroup52,	@QryGroup53,	@QryGroup54,	@QryGroup55,	@QryGroup56,	@QryGroup57,	@QryGroup58,	@QryGroup59,	@QryGroup60,	@QryGroup61,	@QryGroup62,	@QryGroup63,	@QryGroup64,
+				   CAST(GETDATE() AS DATE), CAST(GETDATE() AS DATE), @UserId, @U_Cobranza, @U_Canal,@U_FechaCredito, @U_CtaOrdenante, @U_RfcEmisorCtaOrd, @U_NomBancoOrdExt, @Fax, @U_RegimenFiscal)
+		END
+
+		SELECT CardCode FROM sap.OCRD WHERE CardCode = @CardCode
+	END
+
+	IF @TipoConsulta = 2
+	BEGIN
+		DECLARE @CntctCode INT = ISNULL((SELECT MAX(CntctCode)  FROM sap.OCPR), 0) + 1 
+		
+		INSERT INTO sap.OCPR (CntctCode, CardCode, Name, FirstName, LastName, Address, Tel1, Tel2, Cellolar, Active/***/,E_MailL, Fax, Pager, MiddleName)
+						VALUES (@CntctCode, @CardCode, @Name, @FirstName, @LastName, @Address, @Tel1, @Tel2, @Cellolar, @Active /****/, @E_MaIl, @Fax, @Pager, @MiddleName)
+	END
+
+	IF @TipoConsulta = 3
+	BEGIN
+		INSERT INTO sap.CRD1(CardCode, AdresType, Address, Street, City, ZipCode, County, State, Country, StreetNo, TaxCode, Building, Block, LicTradNum, U_CColonia, U_CLocalidad, U_CMunicipio)
+						VALUES(@CardCode, @AdresType, @Address2, @Street, @City, @ZipCode, @County, @State, @Country, @StreetNo, @TaxCode, @Building, @Block, @FederalTaxID, @U_CColonia, @U_CLocalidad, @U_CMunicipio)
+	END
+
+	IF @TipoConsulta = 4
+	BEGIN
+		IF @tipo = 'borrador'
+		BEGIN
+
+			SELECT * FROM sap.OCRD WHERE CardCode = @CardCode
+
+			SELECT * FROM sap.CRD1 WHERE CardCode = @CardCode
+
+			SELECT * FROM sap.OCPR WHERE CardCode = @CardCode
+
+			SELECT * FROM sap.CRD4 WHERE CardCode = @CardCode
+
+			SELECT * FROM sap.OCRB WHERE CardCode = @CardCode
+		END
+		ELSE
+		BEGIN
+			SELECT *, ''[U_Autorizado] FROM SBOCTRZ.dbo.OCRD WHERE CardCode = @cardCode
+			
+			SELECT * FROM SBOCTRZ.dbo.CRD1 WHERE CardCode = @CardCode
+
+			SELECT * FROM SBOCTRZ.dbo.OCPR WHERE CardCode = @CardCode
+
+			SELECT * FROM SBOCTRZ.dbo.CRD4 WHERE CardCode = @CardCode
+
+			SELECT * FROM SBOCTRZ.dbo.OCRB WHERE CardCode = @CardCode
+		END
+	END
+
+	IF @TipoConsulta = 5
+	BEGIN
+		DECLARE @Qry AS nvarchar(MAX) 
+		DECLARE @NameP AS nvarchar(400) 
+		DECLARE @Code AS INT 
+		DECLARE @Propiedades AS TABLE(GroupCode INT, GroupName VARCHAR(400), Valor VARCHAR(1))
+		DECLARE @namebd VARCHAR(50) = ''
+		IF @tipo = 'SAP'
+			SET @namebd = 'SBOCTRZ.dbo.'
+
+		DECLARE ProdInfo CURSOR FOR SELECT GroupCode, GroupName FROM SBOCTRZ.dbo.OCQG
+		OPEN ProdInfo
+		FETCH NEXT FROM ProdInfo INTO @Code, @NameP
+		WHILE @@fetch_status = 0
+		BEGIN
+			SET @Qry = 'SELECT	
+						' + CAST(@Code AS NVARCHAR(2)) + ' GroupCode,
+						''' + @NameP + ''' GroupName, 
+						QryGroup' + CAST(@Code AS NVARCHAR(2)) + ' Valor FROM ' + @namebd + 'OCRD WHERE CardCode = ''' + @CardCode + ''''
+    
+			INSERT INTO @Propiedades
+			EXEC(@Qry)
+
+			FETCH NEXT FROM ProdInfo INTO @Code, @NameP
+		END
+		CLOSE ProdInfo
+		DEALLOCATE ProdInfo
+
+		SELECT GroupCode Num, GroupName, CAST(CASE WHEN Valor = 'Y' THEN 1 ELSE 0 END AS BIT) Valor FROM @Propiedades
+	END
+
+	IF @TipoConsulta = 6
+	BEGIN
+		UPDATE sap.OCRD SET U_Autorizado = @U_Autorizado, Notes = @Notes WHERE CardCode = @CardCode
+
+		IF @U_Autorizado <> 'C'
+		BEGIN
+			UPDATE credit.SignUpClients_Format SET CardCode = NULL WHERE CardCode = @CardCode
+			--UPDATE credit.ClientesInfoComplemento SET CardCode = NULL WHERE CardCode = @CardCode
+			--UPDATE logistics.ClienteReparto SET CodigoCliente = NULL WHERE CodigoCliente = @CardCode
+		END
+	END
+
+	IF @TipoConsulta = 7
+	BEGIN
+		IF @tipo = 'borrador'
+			select Name from sap.OCPR A
+			where cardcode = @CardCode 
+		ELSe
+			select Name from SBOCTRZ.dbo.OCPR A -- where cardcode = 'a 001'
+		where cardcode = @CardCode 
+	END
+
+	IF @TipoConsulta = 8
+	BEGIN
+		SELECT TOP 5 CardCode, U_Autorizado FROM sap.OCRD WHERE U_Autorizado IN( 'A', 'U')
+		--AND CardCode = 'INACTIVAR' --para ya no crear SN en PJ
+	END
+
+	IF @TipoConsulta = 9
+	BEGIN
+		IF @tipo = 'borrador'
+			select A.Address from sap.CRD1 A 
+			where cardcode = @CardCode AND AdresType = @AdresType
+		ELSE
+			select A.Address from SBOCTRZ.dbo.CRD1 A 
+			where cardcode = @CardCode AND AdresType = @AdresType
+	END
+
+	if @TipoConsulta = 10
+	begin
+		insert into credit.historialcredito values (getdate(),@U_Correo,@U_CreditLine,@cardCode,@Cellular)
+	end
+
+	/***************************PABLO CUAUTLE COATL 03/08/2019********************************/
+	if @TipoConsulta = 11
+	begin
+		select PicturName[Nombre], ItemCode[Codigo] from SBOCTRZ.dbo.OITM where PicturName is not null and PicturName <> '' order by PicturName 
+	end
+
+	if @TipoConsulta = 12
+	begin
+		select ISNULL(MAX(id), 0) + 1 ID FROM [HNT-Files].dbo.Files_DMA 
+	end
+
+	if @TipoConsulta = 13
+	begin
+		IF NOT EXISTS (SELECT * FROM [HNT-Files].dbo.Files_DMA WHERE ItemCode = @ItemCode )
+		BEGIN
+			INSERT INTO [HNT-Files].dbo.Files_DMA values(@ID, @Nombre, @Foto, @ItemCode)
+		END
+		ELSE 
+		BEGIN
+			UPDATE [HNT-Files].dbo.Files_DMA SET Nombre = @Nombre, Archivo = @Foto WHERE ItemCode = @ItemCode 
+		END
+	end
+
+	if @TipoConsulta = 14
+	begin
+		select Id, ItemCode from [HNT-Files].dbo.Files_DMA where ItemCode = @ItemCode
+	end
+
+	if @TipoConsulta = 15
+	begin
+		select Archivo from [HNT-Files].dbo.Files_DMA where ItemCode = @ItemCode and Id = @ID
+	end
+
+	IF @TipoConsulta = 16
+	BEGIN
+		If @ID <> 35
+			BEGIN
+			Select 'SI'
+			END
+		else
+			BEGIN 
+			If (select ItmsGrpcod from SBOCTRZ.DBO.OITM where ItemCode = @ItemCode) in (173,174,179,180,181,182)
+			Select 'SI'
+			else
+			Select 'NO'
+			END
+	END
+
+	IF @TipoConsulta = 17 ---Permisos para visualizacion de apartado Lista de precios en datos maestros de articulos
+	BEGIN
+			--Usuario para visualizar Admin
+			SELECT
+			CASE WHEN @Rol IN(1,3) THEN 1 ELSE 0 END [Permiso]		
+	END
+
+	
+
+END
