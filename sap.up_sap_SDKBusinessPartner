@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_sap_SDKBusinessPartner]    Script Date: 12/02/2024 03:11:40 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_sap_SDKBusinessPartner]    Script Date: 14/02/2024 12:06:56 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -143,6 +143,8 @@ ALTER PROCEDURE [dbo].[up_sap_SDKBusinessPartner]
 	,@ItemCode				VARCHAR(50)	= NULL
 	,@Foto					VARBINARY(MAX) = NULL
 	,@Rol				    INT	= NULL
+	,@CodigoPostal			VARCHAR(50) = NULL
+	,@Estado				VARCHAR(50) = NULL
 AS
 BEGIN
 	IF @TipoConsulta = 1
@@ -353,6 +355,65 @@ BEGIN
 			CASE WHEN @Rol IN(1,3) THEN 1 ELSE 0 END [Permiso]		
 	END
 
-	
+	IF @TipoConsulta = 18
+	BEGIN
+		IF @tipo = 'Municipio'
+		BEGIN
+			SELECT 
+				c_Descripcion Nombre
+				, CONCAT(A.c_Municipio,'_',A.c_Estado) Codigo
+				, A.c_Municipio
+			FROM sap.c_Municipio A
+			JOIN SAP.c_CodigoPostal B ON A.c_Municipio = B.c_Municipio AND A.c_Estado = B.c_Estado 
+			WHERE B.c_CodigoPostal = @CodigoPostal
+			ORDER BY c_Descripcion
+		END
+		ELSE IF @tipo = 'Colonia'
+		BEGIN
+			SELECT 
+				'Ninguno' Nombre,
+				'' Codigo,
+				'' c_Colonia
+			UNION ALL
+			SELECT 
+				Nombre_Asentamiento Nombre
+				, Nombre_Asentamiento Codigo
+				, c_Colonia
+			FROM 
+				sap.c_Colonia A
+				JOIN SAP.c_CodigoPostal B ON A.c_CodigoPostal = B.c_CodigoPostal
+			WHERE A.c_CodigoPostal = @CodigoPostal AND B.c_Estado = @Estado
+			ORDER BY c_Colonia
+		END
+		ELSE IF @tipo = 'Localidad'
+		BEGIN
+			SELECT 
+				'Ninguno' Nombre,
+				'' Codigo,
+				'' c_Localidad
+			UNION ALL
+			SELECT 
+				A.c_Descripcion Nombre
+				, A.c_Descripcion Codigo
+				, A.c_Localidad
+			FROM 
+				SAP.c_Localidad A
+				JOIN SAP.c_CodigoPostal B ON A.c_Localidad = B.c_Localidad AND A.c_Estado = B.c_Estado
+			WHERE B.c_CodigoPostal = @CodigoPostal AND A.c_Estado = @Estado
+			--ORDER BY c_Descripcion
+		END
+	END
+
+	IF @TipoConsulta = 19
+	BEGIN
+		SELECT
+			A.c_CodigoPostal
+			, CONCAT(B.c_Municipio, '_',B.c_Estado) c_Municipio
+			, B.c_Descripcion
+		FROM
+			sap.c_CodigoPostal A
+			JOIN sap.c_Municipio B ON A.c_Municipio = B.c_Municipio and c_CodigoPostal = @CodigoPostal AND B.C_Estado = @Estado
+			order by b.c_Descripcion
+	END
 
 END
