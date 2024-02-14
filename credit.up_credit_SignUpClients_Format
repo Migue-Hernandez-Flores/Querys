@@ -1,0 +1,202 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_credit_SignUpClients_Format]    Script Date: 13/02/2024 05:56:23 p. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		<Author,,Name>
+-- Create date: <Create Date,,>
+-- Description:	<Description,,>
+-- =============================================
+ALTER PROCEDURE [dbo].[up_credit_SignUpClients_Format]
+	@TipoConsulta			INT
+	, @BusinessName			VARCHAR(200) = NULL
+	, @GroupCode			INT = NULL
+	, @Currency				VARCHAR(3) = NULL
+	, @RFC					VARCHAR(13)= NULL
+	, @Email				VARCHAR(150)= NULL
+	, @IndCode				INT= NULL
+	, @SlpCode				INT= NULL
+	, @UsageCFDI			VARCHAR(10)= NULL
+	, @TypeBPartner			CHAR(1)= NULL
+	, @PaymentCondition		INT= NULL
+	, @WayToPayment			VARCHAR(10)= NULL
+	, @PriceList			INT= NULL
+	, @ChannelCode			INT= NULL
+	, @VisitCode			VARCHAR(10)= NULL
+	, @QryGroup38			CHAR(1)= NULL
+	, @ID					INT= NULL
+	, @c_CodigoPostal		VARCHAR(5)= NULL
+	, @c_Estado				VARCHAR(5)= NULL
+	, @c_Municipio			VARCHAR(100)= NULL
+	, @c_Colonia			VARCHAR(100)= NULL
+	, @c_Localidad			VARCHAR(100)= NULL
+	, @StreetNumber			VARCHAR(100)= NULL
+	, @AddressType			CHAR(1)= NULL
+	, @U_FolioHalcon		INT = NULL
+	, @RepartZone			VARCHAR(100) = NULL
+	, @CardCode				VARCHAR(50) = NULL
+	, @Latitude				DECIMAL(18,10) = NULL
+	, @Longitude			DECIMAL(18,10) = NULL
+	, @TypeCoords			VARCHAR(100) = NULL
+	, @Orden				INT = NULL
+	, @Code					INT = NULL
+	, @Message				VARCHAR(MAX) = NULL
+	, @Canal				INT = NULL
+	, @U_Sucursal			VARCHAR(100) = NULL
+	, @RegimenFiscal		INT = NULL
+AS
+BEGIN
+	IF @TipoConsulta = 1
+	BEGIN
+		SET @Code = 1
+
+		/* CANALES Y SUBCANALES */
+
+		IF @Canal = 1 AND @IndCode NOT IN (2,4,6)
+		BEGIN
+			SET @Code = -1 SET @Message = 'Cliente de TRANSPORTE, elegir subcanal correcto'
+		END
+		ELSE
+		BEGIN
+		IF @Canal <> 1 AND @IndCode IN (2,4,6)
+			SET @Code = -1 SET @Message = 'Subcanal incorrecto, elije canal TRANSPORTE'
+		END
+
+		IF @Canal = 2 AND @IndCode NOT IN (3,5,7,8)
+		BEGIN
+			SET @Code = -1 SET @Message = 'Cliente de MAYOREO, elegir subcanal correcto'
+		END
+		ELSE
+		BEGIN
+			IF @Canal NOT IN (2,4) AND @IndCode IN (3,5,7,8)
+				SET @Code = -1 SET @Message = 'Subcanal incorrecto, elije canal MAYOREO/INDUSTRIAL'
+		END
+
+		IF @Canal = 3 AND @IndCode NOT IN (1)
+		BEGIN
+			SET @Code = -1 SET @Message = 'Cliente de ARMADORES, elegir subcanal correcto'
+		END
+		ELSE
+		BEGIN
+			IF @Canal <> 3 AND @IndCode IN (1)
+				SET @Code = -1 SET @Message = 'Subcanal incorrecto, elije canal ARMADORES'
+		END
+
+		IF @Canal = 4 AND @IndCode NOT IN (7,8)
+		BEGIN
+			SET @Code = -1 SET @Message = 'Cliente INDUSTRIAL, elegir subcanal correcto'
+		END
+		ELSE
+		BEGIN
+			IF @Canal <> 4 AND @IndCode IN (7,8)
+				SET @Code = -1 SET @Message = 'Subcanal incorrecto, elije canal INDUSTRIAL'
+		END
+
+		/* LISTA DE PRECIOS */
+		IF @Code  = 1
+		BEGIN
+			IF @Canal = 1 AND @PriceList NOT IN (1,2,3,16,17,18)
+				SET @Code = -1 SET @Message = 'Elije una lista de precio de TRANSPORTE'
+			IF @Canal IN (2,3) AND @PriceList NOT IN (4,5,6,19,20,21)
+				SET @Code = -1 SET @Message = 'Elije una lista de precio de MAYOREO'
+		END
+
+		IF @Code = 1
+		BEGIN
+		
+			SET @ID = ISNULL((SELECT TOP 1 ISNULL(ID, 0) FROM credit.SignUpClients_Format ORDER BY ID DESC),0) + 1
+
+			SET @U_Sucursal = (SELECT CodSucursal FROM hnt.Usuarios WHERE UserID = @U_FolioHalcon)
+
+			INSERT INTO credit.SignUpClients_Format
+			VALUES(@ID, NULL, @BusinessName, @GroupCode, @Currency, @RFC, @Email, @IndCode, @SlpCode, @UsageCFDI, @TypeBPartner
+			, @PaymentCondition, @WayToPayment, @PriceList, @QryGroup38, GETDATE(), @VisitCode, @RepartZone, @U_FolioHalcon, 'PUE', @RegimenFiscal)
+
+			SET @Code = @ID SET @Message = 'Cliente registrado correctamente con folio #' + CONVERT(NVARCHAR,@ID)
+
+		END
+		SELECT @Code [Code], @Message [Message]
+	END
+
+	IF @TipoConsulta = 2
+	BEGIN
+		INSERT INTO credit.SignUpAddress_Format
+		VALUES(@ID, @c_CodigoPostal, @c_Estado, @c_Municipio, @c_Colonia, @c_Localidad, @StreetNumber, @AddressType)
+	END
+	IF @TipoConsulta = 3
+	BEGIN
+		
+		IF @SlpCode <> -1
+		BEGIN
+			SELECT ID, BusinessName [Nombre/Razon social], Currency [Moneda], RFC, Email
+			, CASE WHEN TypeBPartner = 'C' THEN 'Sociedades' 
+				WHEN TypeBPartner = 'I' THEN 'Privado'
+				END [Tipo de socio]
+			FROM credit.SignUpClients_Format
+			WHERE CardCode IS NULL AND GroupCode IN (SELECT DISTINCT B.GroupCode
+								FROM hnt.Usuarios A
+								JOIN hnt.SucursalesHalconet B ON B.CodSucursal = A.CodSucursal
+								where a.CodSucursal = @SlpCode)
+		END
+		ELSE
+		BEGIN
+			SELECT ID, BusinessName [Nombre/Razon social], Currency [Moneda], RFC, Email
+			, CASE WHEN TypeBPartner = 'C' THEN 'Sociedades' 
+				WHEN TypeBPartner = 'I' THEN 'Privado'
+				END [Tipo de socio]
+			FROM credit.SignUpClients_Format
+			WHERE CardCode IS NULL 
+		END
+
+	END
+	IF @TipoConsulta = 4
+	BEGIN
+
+		SELECT FORMAT(VisitCode,'00') VisitCode, *
+		FROM credit.SignUpClients_Format
+		WHERE CardCode IS NULL AND ID = @ID
+
+		SELECT 
+		A.AddressType,
+		CASE WHEN A.AddressType = 'B' THEN 'FISCAL'
+			WHEN A.AddressType = 'S' THEN 'ENTREGA' END  [AddressID]
+		, A.StreetNumber [Street]
+		, A.c_Colonia [Block]
+		, A.c_Municipio [City]
+		, A.c_CodigoPostal [ZipCode]
+		, A.c_Municipio [County]
+		, A.c_Estado [State]
+		, /*CASE WHEN D.c_Pais = 'MEX' THEN 'MX' ELSE D.c_Pais END*/ 'MX' [Country]
+		, 'IVAPA16' [TaxCode]
+		--, E.*
+		FROM credit.SignUpAddress_Format A
+		--LEFT JOIN sap.c_Estado D ON D.C_SAP = A.c_Estado
+		WHERE A.SignUpID = @ID
+
+		SELECT *
+		FROM credit.ClientesInfoComplemento
+		WHERE CardCode = CONVERT(NVARCHAR,@ID)
+	END
+	IF @TipoConsulta = 5
+	BEGIN
+		UPDATE credit.SignUpClients_Format SET CardCode = @CardCode WHERE ID = CONVERT(NVARCHAR,@ID)
+		UPDATE logistics.ClienteReparto SET CodigoCliente = @CardCode WHERE CodigoCliente = CONVERT(NVARCHAR,@ID)
+	END
+	IF @TipoConsulta = 6
+	BEGIN
+		INSERT INTO logistics.ClienteReparto
+		VALUES
+		(@ID, @BusinessName, @Latitude, @Longitude, GETDATE(), @TypeCoords, @Orden, NULL)
+	END
+	
+	IF @TipoConsulta = 7
+	BEGIN
+		DELETE FROM credit.SignUpClients_Format WHERE ID = @ID
+		DELETE FROM credit.ClientesInfoComplemento WHERE CardCode = CONVERT(NVARCHAR,@ID)
+		DELETE FROM logistics.ClienteReparto WHERE CodigoCliente = CONVERT(NVARCHAR,@ID)
+	END	
+END
+--SELECT * FROM credit.SignUpClients_Format WHERE WasCopied = 'N'
