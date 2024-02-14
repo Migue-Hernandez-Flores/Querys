@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_credit_SignUpClients_Format]    Script Date: 13/02/2024 05:56:23 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_credit_SignUpClients_Format]    Script Date: 14/02/2024 12:10:04 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -47,6 +47,9 @@ ALTER PROCEDURE [dbo].[up_credit_SignUpClients_Format]
 	, @Canal				INT = NULL
 	, @U_Sucursal			VARCHAR(100) = NULL
 	, @RegimenFiscal		INT = NULL
+	, @U_CMunicipio			VARCHAR(60) = NULL
+	, @U_CColonia			VARCHAR(60) = NULL
+	, @U_CLocalidad			VARCHAR(60) = NULL
 AS
 BEGIN
 	IF @TipoConsulta = 1
@@ -124,7 +127,7 @@ BEGIN
 	IF @TipoConsulta = 2
 	BEGIN
 		INSERT INTO credit.SignUpAddress_Format
-		VALUES(@ID, @c_CodigoPostal, @c_Estado, @c_Municipio, @c_Colonia, @c_Localidad, @StreetNumber, @AddressType)
+		VALUES(@ID, @c_CodigoPostal, @c_Estado, @c_Municipio, @c_Colonia, @c_Localidad, @StreetNumber, @AddressType, @U_CMunicipio, @U_CColonia, @U_CLocalidad)
 	END
 	IF @TipoConsulta = 3
 	BEGIN
