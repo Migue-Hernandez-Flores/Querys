@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_credit_ControlCreditos]    Script Date: 09/04/2024 10:47:44 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_credit_ControlCreditos]    Script Date: 09/04/2024 01:17:40 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -38,6 +38,8 @@ ALTER PROCEDURE [dbo].[up_credit_ControlCreditos]
       ,@ComentarioFormatoContado varchar(250)=null
       ,@CartaExtension varchar(100)=null
       ,@ComentarioCartaExtension varchar(250)=null
+	  ,@IneEncargadoSucursal varchar(250)=null
+	  ,@ComentarioIneEncargadoSucursal varchar(250)=null
 	  ,@Estatus varchar(250)=null
 	  ,@Numero int=null
 	  ,@Tiempo varchar(250)=null
@@ -132,6 +134,8 @@ BEGIN
 	  ,'En Proceso'
 	  ,null
 	  ,@CodSucursal
+	  ,@IneEncargadoSucursal
+	  ,@ComentarioIneEncargadoSucursal
 	)
 	
 	exec [dbo].[up_credit_ControlCreditos]  @TipoConsulta = 5, @Folio = @Folio, @Vendedor = @Vendedor, @AdmonCC = @AdmonCC,
@@ -161,6 +165,7 @@ BEGIN
 	  ,isnull(A.[CartaFirmas],'NO APLICA')[CartaFirmas]
 	  ,isnull(A.[FormatoContado],'NO APLICA')[FormatoContado]
 	  ,isnull(A.[Fotografias],'NO APLICA')[Fotografias]
+	  ,isnull(A.[IneEncargadoSucursal],'NO APLICA')[IneEncargadoSucursal]
 	 ,case when [Tipo] = 'Nuevo Crédito' then (Select X.Resultado from [HNT_TRZ].[credit].[CreditoReferencias]X where X.Idcredito = A.Folio and X.NumeroReferencia = 1)
 		   when [Tipo] = 'Extensión de crédito' then 'NO APLICA' end Ref1
 	 ,case when [Tipo] = 'Nuevo Crédito' then (Select X.Resultado from [HNT_TRZ].[credit].[CreditoReferencias]X where X.Idcredito = A.Folio and X.NumeroReferencia = 2)
@@ -367,6 +372,7 @@ BEGIN
       ,[CartaFirmas] = @CartaFirmas
       ,[FormatoContado] = @FormatoContado
       ,[CartaExtension] = @Solicitud
+	  ,[IneEncargadoSucursal] = @IneEncargadoSucursal
 	  ,[Estatus] = @Estatus
 	where Folio = @Folio
 	END
