@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_credit_Ingresos]    Script Date: 24/01/2024 09:19:19 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_credit_Ingresos]    Script Date: 10/04/2024 10:29:11 a. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -49,16 +49,17 @@ ALTER PROCEDURE [dbo].[up_credit_Ingresos]
    ,@NoPago				nvarchar(250) = NULL
    ,@Error				VARCHAR(MAX) = NULL
    ,@DocNum				VARCHAR(50) = NULL
-   ,@TipoDoc			VARCHAR(15) = NULL
-   ,@slpResponsable		int = NULL
-   ,@correoResponsable	VARCHAR(250) = NULL
-   ,@DateCorreo			DATETIME = NULL
-   ,@Ruta				VARCHAR(1500) = NULL
-   ,@Opc				INT = NULL
-   ,@UpdateRecibo		VARCHAR(5) = NULL
-   ,@QRY				NVARCHAR(MAX) = NULL
-   ,@Params				NVARCHAR(MAX) = NULL
-   ,@Almacen			VARCHAR(10) = NULL
+   ,@TipoDoc			VARCHAR(15) = NULL  --CambiosPrerecibo
+   --,@slpResponsable		VARCHAR(15) = NULL	--CambiosPrerecibo
+   ,@slpResponsable		INT = NULL	--CambiosPrerecibo_v2
+   ,@correoResponsable	VARCHAR(250) = NULL	--CambiosPrerecibo
+   ,@DateCorreo			DATETIME = NULL		--CambiosPrerecibo
+   ,@Ruta				VARCHAR(1500) = NULL--CambiosPrerecibo
+   ,@Opc				INT = NULL			--CambiosPrerecibo
+   ,@UpdateRecibo		VARCHAR(5) = NULL	--CambiosPrerecibo
+   ,@QRY				NVARCHAR(MAX) = NULL--CambiosPrerecibo
+   ,@Params				NVARCHAR(MAX) = NULL--CambiosPrerecibo
+   ,@Almacen				VARCHAR(15) = NULL
 AS 
 BEGIN 
 	IF @Sucursal = 'ESTADO DE MEXICO' 
@@ -109,9 +110,8 @@ BEGIN
 		SELECT 'Tijuana' Codigo, 1800000000, '21'
 		UNION ALL
 		SELECT 'Ensenada' Codigo, 1900000000, '22'
-
 		)T1
-	
+
 	IF @TipoConsulta = 1
 	BEGIN
 		BEGIN TRY	
@@ -174,7 +174,6 @@ BEGIN
 					, ProvPrerecibo = 'Y'
 					, CreateDate = GETDATE()
 				WHERE Code = @Code
-
 				SELECT Code, TipoDoc, 1 Success from credit.Ingresos where Code = @Code
 			END
 		END TRY
@@ -182,12 +181,12 @@ BEGIN
 			DECLARE @error34 varchar(550) 
 			SELECT @error34 = '' + ERROR_MESSAGE() + ''
 			--SELECT @error34 +=' [[Procedure: ' + ERROR_PROCEDURE() + ']]'
-			
+
 			RAISERROR (@error34 , 11, 1)
 			--ROLLBACK
 		END CATCH	
 	END
-	
+
 	---INSERT FOLIO POR SUCURSAL SOLICITO JACQUELINE  20-7-2015
 	IF @TipoConsulta = 2
 	BEGIN
@@ -220,7 +219,7 @@ BEGIN
 		END CATCH	
 	END
 	
-	IF @TipoConsulta = 3
+	IF @TipoConsulta = 3 --CambiosPrerecibo
 	BEGIN
 		BEGIN TRY	
 			IF NOT EXISTS(SELECT Code FROM credit.IngresosDetalle WHERE Code = @Folio AND Factura = @Factura)
@@ -241,10 +240,10 @@ BEGIN
 			ROLLBACK
 		END CATCH	
 	END
-	
-	IF @TipoConsulta = 5
+
+	IF @TipoConsulta = 5 --CambiosPrerecibo
 	BEGIN
-		SET @QRY = '
+		 SET @QRY = '
 			SELECT  
 			*
 			FROM(	
@@ -266,7 +265,7 @@ BEGIN
 						WHEN A.MetodoPago like ''%Tarjeta%'' then CAST(A.nAprobacion AS NVARCHAR)
 						WHEN A.MetodoPago in (''Cheque Protegido'', ''Cheque Posfechado'') then A.NoCheque
 					END [No. Aprobación/Cheque]
-				, A.FechaDeposito [Fecha de depósito]
+				, A.FechaDeposito [Fecha de depósito / Fecha de cobro] 
 				, A.NoPago [NoPago]
 				, ISNULL(A.TipoDoc, ''RCB'') TipoDoc
 				, D.slpName Responsable
@@ -294,6 +293,7 @@ BEGIN
 						AND A.Agente = ''Caja Puebla'' 
 						AND ''' + @Sucursal + ''' like ''%Puebla (Caja)%''
 						AND A.Cancelado IS NULL
+						AND TipoDoc <> ''CONEX''
 					)
 			'
 		END
@@ -315,7 +315,7 @@ BEGIN
 					, NULL Folio
 					, NULL Agente
 					, NULL [No. Aprobación/Cheque]
-					, NULL [Fecha de depósito]
+					, NULL [Fecha de depósito / Fecha de cobro]
 					, NULL [NoPago]
 					, ISNULL(TipoDoc, ''RCB'') TipoDoc
 					, NULL Responsable
@@ -325,7 +325,6 @@ BEGIN
 				WHERE 
 					A.FechaCorte BETWEEN '''+ CAST(@Desde AS VARCHAR) + ''' AND ''' + CAST(@Hasta AS VARCHAR) +'''
 					AND A.Cancelado IS NULL
-					AND TipoDoc <> ''CONEX''
 		'
 		IF @Sucursal = '''''Puebla (Caja)''''' BEGIN SET @QRY+=' 
 					AND A.Agente IN (''Caja Puebla'')
@@ -526,11 +525,10 @@ BEGIN
 	--AGENTES
 	IF @TipoConsulta = 10
 	BEGIN
-		select Nombre Codigo, Nombre Nombre from hnt.Usuarios where UserID = @UserID
+		select Nombre Codigo, Nombre Nombre from hnt.Usuarios where UserID = @UserID 
 	END
 	
-	--CONSULTA DE RECIBOS
-	IF @TipoConsulta = 14
+	IF @TipoConsulta = 14 --CambiosPrerecibo
 	BEGIN	
 		SET @QRY = '
 			SELECT 
@@ -669,20 +667,20 @@ BEGIN
 		set NoPago = @NoPago where Code = @Folio
 	END
 
-	IF @TipoConsulta = 22
+	IF @TipoConsulta = 22 --CambiosPrerecibo
 	BEGIN
 		SET @Qry = '
 			SELECT 
 				CAST(A.SlpCode AS INT) Codigo
-				, CONCAT(A.SlpCode, '' | '', B.Nombre) Nombre
+				, CONCAT(A.SlpCode, '' | '', ISNULL(B.Nombre, A.SlpName)) Nombre
 				, B.Correo
 			FROM
 				SBOCTRZ.DBO.OSLP A 
-				JOIN hnt.Usuarios B ON A.SlpCode = b.SlpCode and A.U_Valido = 1 AND A.SlpCode <> -1
+				JOIN hnt.Usuarios B ON A.SlpCode = b.SlpCode and Activo = ''Y'' and Depto = ''VE''
 		'
-		IF @UserID NOT IN (6117, 55, 43) BEGIN SET @Qry += '
+		IF @Rol NOT IN (1,2) BEGIN SET @Qry += '
 			WHERE  
-			A.Memo = @Almacen 
+				A.Memo = @Almacen 
 		' END
 
 		SET @Params = '@Almacen VARCHAR(10)'
@@ -796,14 +794,14 @@ BEGIN
 					 WHEN DocCur = 'USD' THEN PaidFC 
 					 ELSE PaidToDate 
 				  END Saldo
-				, C.NcReal [NC_DE]
-				, C.NcPP [NC_PP]
+				, ISNULL(C.NcReal, 0) [NC_DE]
+				, ISNULL(C.NcPP, 0) [NC_PP]
 				, B.Monto [Importe]
 				, '' Mensaje
 			FROM 
 				SBOCTRZ.dbo.OINV A
 				JOIN credit.IngresosDetalle B ON A.DocNum = B.Factura AND B.Code <> 0 AND B.Code = @Code
-				JOIN #TblCalculoNC C ON B.Factura = C.Factura
+				LEFT JOIN #TblCalculoNC C ON B.Factura = C.Factura
 
 			SELECT '' HiddenColumns
 
