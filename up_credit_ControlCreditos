@@ -1,0 +1,516 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_credit_ControlCreditos]    Script Date: 09/04/2024 10:47:44 a. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- =============================================
+-- Author:		<Author,,Name>
+-- Create date: <Create Date,,>
+-- Description:	<Description,,>
+-- =============================================
+ALTER PROCEDURE [dbo].[up_credit_ControlCreditos]
+	@TipoConsulta			int=null
+	  ,@Folio int = null
+      ,@Sucursal varchar(100)=null
+      ,@AdmonCC  varchar(100)=null
+      ,@Vendedor varchar(100)=null
+	  ,@SlpCode  INT=null
+      ,@CardCode varchar(250)=null
+      ,@CardName varchar(250)=null
+      ,@Tipo varchar(100)=null
+      ,@Solicitud varchar(100)=null
+      ,@ComentarioSolicitud varchar(250)=null
+      ,@Referencias varchar(100)=null
+      ,@ComentarioReferencias varchar(250)=null
+      ,@IneSolicitante varchar(100)=null
+      ,@ComentarioIneSolicitante varchar(250)=null
+      ,@CedulaFiscal varchar(100)=null
+      ,@ComentarioCedulaFiscal varchar(250)=null
+      ,@CompDomicilio varchar(100)=null
+      ,@ComentarioCompDomicilio varchar(250)=null
+      ,@Fotografias varchar(100)=null
+      ,@ComentarioFotografias varchar(250)=null
+      ,@CartaFirmas varchar(100)=null
+      ,@ComentarioCartaFirmas varchar(250)=null
+      ,@FormatoContado varchar(100)=null
+      ,@ComentarioFormatoContado varchar(250)=null
+      ,@CartaExtension varchar(100)=null
+      ,@ComentarioCartaExtension varchar(250)=null
+	  ,@Estatus varchar(250)=null
+	  ,@Numero int=null
+	  ,@Tiempo varchar(250)=null
+      ,@LineaCredito varchar(250)=null
+      ,@Condicion varchar(250)=null
+      ,@Facturacion varchar(250)=null
+      ,@Evaluacion varchar(250)=null
+      ,@Resultado varchar(250)=null
+	  ,@Comentario varchar(250)=null
+	  ,@Id int=null
+	  ,@IdCredito int=null
+	  ,@IdReferencia int=null
+	  ,@Forma varchar(250)=null
+	  ,@Fecha varchar(250)=null
+	  ,@CadenaSucursales nvarchar(max)=null
+	  ,@CadenaVendedores nvarchar(max)=null
+	  ,@FechaInicio date = null
+	  ,@FechaFin date = null
+	  ,@CodSucursal varchar(100) = null
+	  ,@CodCliente varchar(100) = null
+	  ,@Rol int = null
+
+AS
+
+BEGIN
+	 DECLARE @TablaSucursales TABLE (Code varchar(200))
+	 DECLARE @TablaVendedores TABLE (Code varchar(200))
+	IF @TipoConsulta = 1
+	BEGIN
+	--Tipo de Crédito
+	SELECT 'Nuevo Crédito'Code,'Nuevo Crédito' Name
+	union all
+	SELECT 'Extensión de crédito'Code,'Extensión de crédito' Name
+
+	--Jefas Cobranza
+	SELECT distinct Name  Nombre, Name Codigo, Memo
+			FROM [SBOCTRZ].dbo.[@HNT_JEFASCOBRANZA] A
+			LEFT JOIN [SBOCTRZ].DBO.OSLP B ON A.Name = B.U_Cobranza
+			Order By A.Name
+	--Vendedores
+	SELECT SlpCode [Codigo], SlpName [Nombre], Memo, ISNULL(U_Correo,'') Correo FROM SBOCTRZ.dbo.OSLP 
+	WHERE Active = 'Y' and Memo is not null
+	order by SlpName
+	--Sucursales
+		Select distinct Memo Cod, CodSucursal Codigo,  Sucursal Nombre from hnt.SucursalesHalconet
+		Where Activo = 'Y'
+		Order by Nombre
+	--Clientes
+		SELECT CardCode, CardName
+		FROM SBOCTRZ.dbo.OCRD 
+		WHERE CardType = 'C'
+		ORDER BY CardName
+	END
+
+	IF @TipoConsulta = 2
+	BEGIN
+	select (SELECT ISNULL(MAX(Folio),0) FROM [HNT_TRZ].[credit].[RegistroCreditos])+1
+	END
+
+	IF @TipoConsulta = 3
+	BEGIN
+	set @CodSucursal = (select top 1 CodSucursal from hnt.SucursalesHalconet Where Activo = 'Y' and Sucursal = @Sucursal)
+	INSERT INTO [HNT_TRZ].[credit].[RegistroCreditos] VALUES
+	(@Folio
+	  ,getdate()
+      ,@Sucursal
+      ,@AdmonCC
+      ,@Vendedor
+	  ,@SlpCode
+      ,@CardCode
+      ,@CardName
+      ,@Tipo
+      ,@Solicitud
+      ,@ComentarioSolicitud
+      ,@Referencias
+      ,@ComentarioReferencias
+      ,@IneSolicitante
+      ,@ComentarioIneSolicitante
+      ,@CedulaFiscal
+      ,@ComentarioCedulaFiscal
+      ,@CompDomicilio
+      ,@ComentarioCompDomicilio
+      ,@Fotografias
+      ,@ComentarioFotografias
+      ,@CartaFirmas
+      ,@ComentarioCartaFirmas
+      ,@FormatoContado
+      ,@ComentarioFormatoContado
+      ,@CartaExtension
+      ,@ComentarioCartaExtension
+	  ,null
+	  ,'En Proceso'
+	  ,null
+	  ,@CodSucursal
+	)
+	
+	exec [dbo].[up_credit_ControlCreditos]  @TipoConsulta = 5, @Folio = @Folio, @Vendedor = @Vendedor, @AdmonCC = @AdmonCC,
+	 @Sucursal = @Sucursal, @CodSucursal = @CodSucursal, @CodCliente = @CardCode
+	END
+	IF @TipoConsulta=4
+	BEGIN
+	  INSERT INTO @TablaSucursales SELECT item FROM [HNT_TRZ].dbo.fu_hnt_OBTIENE_TABLA_DE_ARRAY([dbo].fu_hnt_OBTIENE_ARRAY(@CadenaSucursales,',')); 
+	  INSERT INTO @TablaVendedores SELECT item FROM [HNT_TRZ].dbo.fu_hnt_OBTIENE_TABLA_DE_ARRAY([dbo].fu_hnt_OBTIENE_ARRAY(@CadenaVendedores,',')); 
+
+	Select A.[Folio]
+      ,A.[Tipo]
+	  ,A.[CardCode]
+	  ,A.[CardName]
+	  ,CONVERT(varchar, A.[Fecha],111)Fecha
+      ,A.[Sucursal]
+      ,A.[Vendedor]
+	  , Case when A.FechaAutorizacion <> '' and A.Autorizado <> 'En Proceso' then
+	  DATEDIFF(DAY, A.Fecha, A.FechaAutorizacion)
+	  else DATEDIFF(DAY, A.Fecha, getdate())  end DiasTranscurridos
+	  ,case when A.[Tipo] = 'Nuevo Crédito' then A.Solicitud
+		   when A.[Tipo] = 'Extensión de crédito' then A.CartaExtension end SolicitudOExtension
+      
+      ,isnull(A.[CedulaFiscal],'NO APLICA')[CedulaFiscal]
+	  ,isnull(A.[IneSolicitante],'NO APLICA')[IneSolicitante]
+	  ,isnull(A.[CompDomicilio],'NO APLICA')[CompDomicilio]
+	  ,isnull(A.[CartaFirmas],'NO APLICA')[CartaFirmas]
+	  ,isnull(A.[FormatoContado],'NO APLICA')[FormatoContado]
+	  ,isnull(A.[Fotografias],'NO APLICA')[Fotografias]
+	 ,case when [Tipo] = 'Nuevo Crédito' then (Select X.Resultado from [HNT_TRZ].[credit].[CreditoReferencias]X where X.Idcredito = A.Folio and X.NumeroReferencia = 1)
+		   when [Tipo] = 'Extensión de crédito' then 'NO APLICA' end Ref1
+	 ,case when [Tipo] = 'Nuevo Crédito' then (Select X.Resultado from [HNT_TRZ].[credit].[CreditoReferencias]X where X.Idcredito = A.Folio and X.NumeroReferencia = 2)
+		   when [Tipo] = 'Extensión de crédito' then 'NO APLICA' end Ref2
+	 ,case when [Tipo] = 'Nuevo Crédito' then (Select X.Resultado from [HNT_TRZ].[credit].[CreditoReferencias]X where X.Idcredito = A.Folio and X.NumeroReferencia = 3)
+		   when [Tipo] = 'Extensión de crédito' then 'NO APLICA' end Ref3
+	  ,[Estatus]
+      ,[Autorizado]
+	  ,convert(nvarchar,[FechaAutorizacion] ,111)[FechaAutorizacion]
+     -- ,[FechaAutorizacion] 
+	  from [HNT_TRZ].[credit].[RegistroCreditos] A
+	  where 
+	  A.Sucursal in (select * from @TablaSucursales)
+	  and A.SlpCode in (select * from @TablaVendedores)
+	  and A.Fecha between @FechaInicio and @FechaFin
+	  and A.Autorizado <>'Cancelado'
+	END
+
+	IF @TipoConsulta =5
+	BEGIN
+		DECLARE @Body NVARCHAR(MAX)
+		DECLARE @Mail VARCHAR(500)
+		DECLARE @msj varchar(max)
+		select * into #TEMP from [HNT_TRZ].[credit].[RegistroCreditos] where folio = @Folio
+		SET @msj = '<style>.datagrid table { border-collapse: collapse; text-align: left; width: 100%; } .datagrid {font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; }.datagrid table td, .datagrid table th { padding: 3px 10px; }.datagrid table thead th {background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% );filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F'');background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8; } .datagrid table thead th:first-child { border: none; }.datagrid table tbody td { color: #00496B; border-left: 1px solid #E1EEF4;font-size: 12px;font-weight: normal; }.datagrid table tbody .alt td { background: #E1EEF4; color: #00496B; }.datagrid table tbody td:first-child { border-left: none; }.datagrid table tbody tr:last-child td { border-bottom: none; }</style>'
+		set @msj += '
+		<p style=''padding-bottom:0.5px''>Se informa que se recibe solicitud de crédito a nombre del cliente <b>'+(select CardName from #TEMP)+'</b></p>
+		<p>quedando con el folio <b> '+(select convert(varchar(200), Folio) from #TEMP)+'</b> para su seguimiento </p>
+		<p>En la modalidad de <b>'+(select Tipo from #TEMP)+'</b></p>
+		<p>del Asesor de Ventas <b>'+(select Vendedor from #TEMP)+'</b></p>'+
+		'<div class="datagrid" style="font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; ">
+		<table style = "border-collapse: collapse; text-align: left; width: 100%; padding: 3px 10px; ">
+		<thead background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) ); background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8;>
+			<tr>'
+			IF (Select Tipo from #TEMP) = 'Nuevo Crédito'
+				set @msj += '<th style = "padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; 	border-left: 1px solid #0070A8;">Nuevo Credito</th>'
+			ELSE
+				set @msj += '<th style = "padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; 	border-left: 1px solid #0070A8;">Extensión de Credito</th>'
+				set @msj +='<th style = "padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) ); background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; 	border-left: 1px solid #0070A8;  ">Recibido</th>
+				<th style = "padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) ); background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; 	border-left: 1px solid #0070A8;">Comentario</th>
+			</tr>
+		</thead>
+			<tbody color: #00496B; border-left: 1px solid #E1EEF4; font-size: 12px;font-weight: normal; >'
+			IF (Select Tipo from #TEMP) = 'Nuevo Crédito'
+			set @msj +='<tr><td style = "padding: 3px 10px; ">Solicitud</td>
+				      <td style = "padding: 3px 10px; ">'+(select [Solicitud] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioSolicitud],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Referencias</td>
+				      <td style = "padding: 3px 10px; ">'+(select [Referencias] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioReferencias],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">INE Solicitante</td>
+				      <td style = "padding: 3px 10px; ">'+(select [IneSolicitante] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioIneSolicitante],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Cédula Fiscal</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CedulaFiscal] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCedulaFiscal],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Comp. de Domicilio</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CompDomicilio] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCompDomicilio],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Fotografías</td>
+				      <td style = "padding: 3px 10px; ">'+(select [Fotografias] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioFotografias],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Carta de Firmas Autorizadas</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CartaFirmas] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCartaFirmas],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Impresión formato de contado</td>
+				      <td style = "padding: 3px 10px; ">'+(select [FormatoContado] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioFormatoContado],'-') from #TEMP)+'</td> </tr>'
+			ELSE
+				set @msj +='<tr><td style = "padding: 3px 10px; ">Carta Extension Linea de crédito</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CartaExtension] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCartaExtension],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Cédula Fiscal</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CedulaFiscal] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCedulaFiscal],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Carta de Firmas Autorizadas</td>
+				      <td style = "padding: 3px 10px; ">'+(select [CartaFirmas] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioCartaFirmas],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Impresión formato de contado</td>
+				      <td style = "padding: 3px 10px; ">'+(select [FormatoContado] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioFormatoContado],'-') from #TEMP)+'</td> </tr>
+					  <tr><td style = "padding: 3px 10px; ">Fotografías</td>
+				      <td style = "padding: 3px 10px; ">'+(select [Fotografias] from #TEMP)+'</td>
+				      <td style = "padding: 3px 10px; ">'+(select isnull([ComentarioFotografias],'-') from #TEMP)+'</td> </tr>'
+			set @msj +='</tbody></table></div><br>'
+		  
+		  DECLARE @Destinatarios VARCHAR(MAX)= ''
+		  DECLARE @GerenteReg VARCHAR(MAX)= ''
+		   DECLARE @GerenteReg_Canal VARCHAR(MAX)= ''
+		  DECLARE @GerenteReg_Industrial VARCHAR(MAX)= ''
+
+		  if
+			(select len (U_Correo) FROM SBOCTRZ.dbo.OSLP WHERE Active = 'Y' and Memo is not null and SlpName = @Vendedor) > 0
+			set @Destinatarios += ((select U_Correo FROM SBOCTRZ.dbo.OSLP WHERE Active = 'Y' and Memo is not null and SlpName = @Vendedor)+';')
+		--Correro JefaCobranza
+		  if
+			(select len (U_Correo) from [SBOCTRZ].dbo.[@HNT_JEFASCOBRANZA] where Code = @AdmonCC ) > 0
+			set @Destinatarios += ((select U_Correo from [SBOCTRZ].dbo.[@HNT_JEFASCOBRANZA] where Code = @AdmonCC )+';')
+		--Gerente Sucursal
+		  if
+			(select len (correo) from hnt_trz.hnt.usuarios where rol = 8 and activo = 'Y' and codsucursal = (select codsucursal from [HNT_TRZ].[credit].[RegistroCreditos] where Folio = @Folio)) > 0
+			set @Destinatarios += ((select correo from hnt_trz.hnt.usuarios where rol = 8 and activo = 'Y' and codsucursal = (select codsucursal from [HNT_TRZ].[credit].[RegistroCreditos] where Folio = @Folio))+';')
+		
+		--Gerente Regional
+		if
+			(SELECT top 1 len (correo) FROM  sales.Regional A join sales.Regional_Sucursal B on B.idRegional = A.NameRegion
+			join hnt.SucursalesHalconet C on C.Memo = B.almacen where C.Memo = (select top 1 Memo from hnt.SucursalesHalconet
+			Where Activo = 'Y' and Sucursal = @Sucursal))>0
+			BEGIN
+				set @Destinatarios += (SELECT top 1 correo FROM  sales.Regional A join sales.Regional_Sucursal B on B.idRegional = A.NameRegion
+				join hnt.SucursalesHalconet C on C.Memo = B.almacen where C.Memo = (select top 1 Memo from hnt.SucursalesHalconet
+				Where Activo = 'Y' and Sucursal = @Sucursal))+';'
+
+				set @GerenteReg += (SELECT top 1 correo FROM  sales.Regional A join sales.Regional_Sucursal B on B.idRegional = A.NameRegion
+				join hnt.SucursalesHalconet C on C.Memo = B.almacen where C.Memo = (select top 1 Memo from hnt.SucursalesHalconet
+				Where Activo = 'Y' and Sucursal = @Sucursal))+';'
+
+				SET @GerenteReg_Canal += (select TOP 1 A.Correo from sales.Regional_Canal A JOIN sales.Regional_Sucursal B ON B.IdRegionalCanal = A.IdRegionalIndicador
+				JOIN HNT.SucursalesHalconet C ON C.Memo = B.almacen where C.Memo = (select top 1 Memo from hnt.SucursalesHalconet 
+				Where Activo = 'Y' and Sucursal = @Sucursal) AND A.Activo = 1) + ';'
+
+				SET @GerenteReg_Industrial += (select TOP 1 A.Correo from sales.Regional_Canal A JOIN sales.Regional_Sucursal_Industrial B ON B.IdRegionalCanal = A.IdRegionalIndicador
+				JOIN HNT.SucursalesHalconet C ON C.Memo = B.almacen where C.Memo = (select top 1 Memo from hnt.SucursalesHalconet 
+				Where Activo = 'Y' and Sucursal = @Sucursal) AND A.Activo = 1) + ';'
+			END
+		
+		/*
+		if  @GerenteReg = 'manolo.nunez@tractozone.com.mx;'
+			BEGIN
+			set @Destinatarios +='daniel.hernandez@tractozone.com.mx;'  --solicitud por fanny
+			END
+		if  @GerenteReg = 'fanny.lopez@tractozone.com.mx;'
+			BEGIN
+			IF isnull(@CodCliente,'') = '' 
+				BEGIN 
+				set @Destinatarios +='jose.rodriguez@tractozone.com.mx;armando.perez@trzindustrial.com.mx;'  --solicitud por fanny 31/03/2021
+				END
+			ELSE
+				BEGIN 
+					if (select B.Name 
+					from SBOCTRZ.DBO.ocrd A 
+					join [SBOCTRZ].[dbo].[@HNT_CANALES] B on A.u_canal = B.Code
+					WHERE A.CardCode = @CodCliente) in ('Transporte','Mayoreo')
+						BEGIN
+							set @Destinatarios +='jose.rodriguez@tractozone.com.mx;'
+						END
+					ELSE
+						BEGIN 
+							set @Destinatarios +='armando.perez@trzindustrial.com.mx;'
+						END 
+				END
+			END
+			*/
+		IF ISNULL(@CodCliente,'') IN ('', 'N/A') /*SEGMENTO ACTUALIZADO PARA ENVIAR POR DEFAULT AL CORREO DEL REGIONAL CANAL- ACTUALIZADO POR PEMIJUMO EN SOLICITUD DE DANIEL HNDZ 08-03-24*/
+		BEGIN 
+			SET @Destinatarios += ISNULL(@GerenteReg_Canal,'') --SE MANDA POR DEFAULT AL Correo del regional canal
+		END
+		ELSE
+		BEGIN 
+			IF (SELECT B.Name FROM SBOCTRZ.DBO.ocrd A join [SBOCTRZ].[dbo].[@HNT_CANALES] B on A.u_canal = B.Code WHERE A.CardCode = @CodCliente) in ('Transporte','Mayoreo')
+			BEGIN
+				SET @Destinatarios += ISNULL(@GerenteReg_Canal,'') -- si es mayoreo y transporte se envia igual al regional canal normal que ven mayoreo y transporte
+			END
+			ELSE
+			BEGIN 
+				SET @Destinatarios += ISNULL(@GerenteReg_Industrial,'') --sino se envía al gte industrial
+			END 
+		END
+
+
+		if  @GerenteReg = 'fanny.lopez@tractozone.com.mx;' and @Sucursal not in ('Monterrey','Guadalajara')
+		BEGIN
+			set @Destinatarios +='karina.vega@tractozone.com.mx;'   --solicitud por fanny 31/03/2021
+		END
+		set @Destinatarios +='jacqueline.covarrubias@tractozone.com.mx;rosario.cuautle@tractozone.com.mx;atencionaclientes@tractozone.com.mx;'
+
+		
+			EXEC msdb.dbo.sp_send_dbmail   
+					@profile_name ='Correo Halconet',
+					@recipients = @Destinatarios,
+					@subject = 'Registro de solicitud de Crédito',
+					@body = @msj,
+					@body_format='HTML',
+					@blind_copy_recipients = 'halconet@tractozone.com.mx;miguel.hernandez@tractozone.com.mx'
+		DROP TABLE #TEMP
+	END
+	IF @TipoConsulta = 6
+	BEGIN
+	IF @Tipo = 'Nuevo Crédito'
+	Update [HNT_TRZ].[credit].[RegistroCreditos]
+		SET [Solicitud] = @Solicitud
+      ,[IneSolicitante] = @IneSolicitante
+      ,[CedulaFiscal] = @CedulaFiscal
+      ,[CompDomicilio] = @CompDomicilio
+      ,[Fotografias] = @Fotografias
+      ,[CartaFirmas] = @CartaFirmas
+      ,[FormatoContado] = @FormatoContado
+	  ,[Estatus] = @Estatus
+	where Folio = @Folio
+	ELSE
+	Update [HNT_TRZ].[credit].[RegistroCreditos]
+      SET [CedulaFiscal] = @CedulaFiscal
+      ,[Fotografias] = @Fotografias
+      ,[CartaFirmas] = @CartaFirmas
+      ,[FormatoContado] = @FormatoContado
+      ,[CartaExtension] = @Solicitud
+	  ,[Estatus] = @Estatus
+	where Folio = @Folio
+	END
+	IF @TipoConsulta = 7
+	BEGIN
+	insert into [HNT_TRZ].[credit].[CreditoReferencias]
+	values(
+      @Folio
+      ,@Numero
+      ,null
+      ,'Sin Especificar'
+      ,null
+      ,null
+      ,null
+      ,null
+      ,null
+      ,'Sin Resultado'
+	  ,null)
+	END
+	IF @TipoConsulta = 8
+	BEGIN
+	Select [Id]
+      ,[Idcredito]
+      ,[NumeroReferencia]
+      , case when [Fecha] is null then (Select Fecha from [HNT_TRZ].[credit].[RegistroCreditos] where Folio = @Folio)
+	  else [Fecha] end [Fecha]
+      ,[Forma]
+      ,[Tiempo]
+      ,[LineaCredito]
+      ,[Condicion]
+      ,[Facturacion]
+      ,[Evaluacion]
+      ,[Resultado]
+      ,[Comentario]
+	from [HNT_TRZ].[credit].[CreditoReferencias]
+	where IdCredito = @Folio
+	and NumeroReferencia = @Numero
+	END
+	IF @TipoConsulta = 9
+	BEGIN
+	update [HNT_TRZ].[credit].[CreditoReferencias]
+	set [Fecha] = @Fecha
+	  ,[Forma] = @Forma
+	  ,[Tiempo] = @Tiempo
+      ,[LineaCredito] = @LineaCredito
+      ,[Condicion] = @Condicion
+      ,[Facturacion] = @Facturacion
+      ,[Evaluacion] = @Evaluacion
+      ,[Resultado] = @Resultado
+	  ,[Comentario] = @Comentario
+	where Idcredito = @Folio
+	and NumeroReferencia = @Numero
+	END
+
+	IF @TipoConsulta = 10
+	BEGIN
+	SELECT  
+		[Id]
+      ,'Resultado'[Resultado]
+	  ,[Resultado] Descripcion
+	FROM [HNT_TRZ].[credit].[CreditoRefResultado]
+	where IdCredito = @Folio
+	and IdReferencia = @Numero
+	END
+
+	IF @TipoConsulta = 11
+	BEGIN
+	Delete from
+	[HNT_TRZ].[credit].[CreditoRefResultado]
+	where Id = @Folio
+	END
+
+	IF @TipoConsulta = 12
+	BEGIN
+	IF @Id > 0
+	Update [HNT_TRZ].[credit].[CreditoRefResultado] set Resultado = @Resultado where Id = @Id
+	ELSE
+	INSERT INTO [HNT_TRZ].[credit].[CreditoRefResultado] VALUES (@IdCredito, @IdReferencia, @Resultado)
+	END
+
+	IF @TipoConsulta = 13
+	BEGIN
+		Select 'Sin Especificar' FormaSolicitud
+		union all
+		Select 'Correo' FormaSolicitud
+		union all
+		Select 'Llamada' FormaSolicitud
+
+		Select 'Sin Resultado' ResultadoReferencia
+		union all 
+		Select 'En gestión Cliente' ResultadoReferencia
+		union all 
+		Select 'En gestión Ventas' ResultadoReferencia
+		union all
+		Select 'Positiva' ResultadoReferencia
+		union all 
+		Select 'Negativa' ResultadoReferencia
+	END
+
+	IF @TipoConsulta = 14
+	BEGIN
+		--Vendedores
+		IF @Rol in (9, 35)
+		BEGIN	
+			SELECT SlpCode[Code], SlpName Name FROM SBOCTRZ.dbo.OSLP 
+			WHERE /*Active = 'Y' and*/ Memo is not null
+			and SlpCode = @Vendedor
+			order by SlpName
+		END
+		ELSE
+		BEGIN
+			SELECT SlpCode[Code], SlpName Name FROM SBOCTRZ.dbo.OSLP 
+			WHERE /*Active = 'Y' and*/ Memo is not null
+			order by SlpName
+		END
+
+	END
+
+	IF @TipoConsulta = 15
+	BEGIN
+	--Sucursales
+		Select distinct Sucursal Code,Sucursal Name from hnt.SucursalesHalconet
+		Where Activo = 'Y'
+		Order by Sucursal
+	END
+	--Actualiza el Estatus
+	IF @TipoConsulta = 16
+	BEGIN
+		update [HNT_TRZ].[credit].[RegistroCreditos]
+		set Autorizado = @Resultado
+		where Folio = @Folio
+	END
+	--Actualiza la fecha de autorización
+	IF @TipoConsulta = 17
+	BEGIN
+		update [HNT_TRZ].[credit].[RegistroCreditos]
+		set FechaAutorizacion = @Fecha
+		where Folio = @Folio
+	END
+	--Actualiza el CardCode
+	IF @TipoConsulta = 18
+	BEGIN
+		update [HNT_TRZ].[credit].[RegistroCreditos]
+		set CardCode = @CardCode
+		where Folio = @Folio
+	END
+END
