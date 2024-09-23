@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_purchase_Compras_Conf]    Script Date: 23/09/2024 09:40:11 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_purchase_Compras_Conf]    Script Date: 23/09/2024 09:41:47 a. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -9,8 +9,8 @@ GO
 
 
 ALTER procedure [dbo].[up_purchase_Compras_Conf]		
-		  @TipoConsulta int,
-		  @Empresa varchar(30),
+		  @TipoConsulta int = NULL,
+		  @Empresa varchar(30) = NULL,
 		  @CardCode varchar(MAX) = NULL,
 		  @Tipo varchar(50) = NULL,
 		  @Independiente NVARCHAR(10) = NULL,
@@ -37,7 +37,9 @@ ALTER procedure [dbo].[up_purchase_Compras_Conf]
 		  @TipoConsultaWeb VARCHAR(15) = NULL,
 		  @EmpresaDestinos varchar(MAX) = NULL,
 		  @Grupo INT = NULL,
-		  @HP VARCHAR(200) = NULL
+		  @HP VARCHAR(200) = NULL,
+		  @UserID INT = NULL, 
+		  @Rol INT = NULL
 
    AS
 
@@ -66,23 +68,39 @@ ALTER procedure [dbo].[up_purchase_Compras_Conf]
  --ZonasProveedor 
 	IF @TipoConsulta = 2
 	BEGIN
-	SET @QRY='	
-	SELECT
-			A.CardCode Proveedor,
-			A.Zona,
-			B.WhsCode,
-			B.WhsName [Almacén],
-			A.Independiente [Almacén independiente]
-		From 
-			'+@BDE+'.purchase.ZonaProveedor A
-			INNER JOIN ['+@BD+'].dbo.OWHS B ON A.WhsCode = B.WhsCode
-		WHERE 
-	    A.CardCode = '''+@CardCode+'''
-		ORDER BY A.Zona asc
-	'		
- EXEC(@QRY)
- 
- END
+		SET @QRY = '
+			SELECT
+				T0.CardCode
+				, ISNULL(C.Zona, '''') Zona
+				, T0.WhsCode
+				, T0.WhsName
+				, C.Independiente [Almacén independiente]
+				, COUNT(C.WhsCode) OVER (PARTITION BY T0.Cardcode) almacenes_configurados
+			FROM
+			(
+				SELECT 
+					a.WhsCode
+					, A.WhsName
+					, B.CardCode
+					, b.cardname
+					, B.U_VLGX_HP
+				FROM
+					[' + @BD + '].dbo.OWHS A,
+					[' + @BD + '].dbo.OCRD B
+				WHERE
+					A.U_VLGX_LVL = ''C''
+					--AND B.U_Tipocompra = 1
+					AND B.CardType = ''S''
+					AND B.frozenFor = ''N''
+					AND B.U_VLGX_PLC IS NOT NULL
+					AND A.WhsCode NOT IN (''T 197'',''E1'')
+					AND B.CardCode = ''' + @CardCode + '''
+			) T0
+				LEFT JOIN ' + @BDE + '.purchase.ZonaProveedor C ON T0.CardCode = C.CardCode AND T0.WhsCode = C.WhsCode
+			ORDER BY  T0.WhsCode
+		'
+		EXEC(@QRY)
+	 END
 
 
 
@@ -161,46 +179,45 @@ ALTER procedure [dbo].[up_purchase_Compras_Conf]
    -- Agregar Zonas a provedoor
 	IF @TipoConsulta = 6
 	BEGIN
+		BEGIN TRY  
+			SET @QRY = '
+				IF EXISTS (SELECT CardCode FROM ['+ @BDE + '].purchase.ZonaProveedor WHERE cardcode = ''' + @CardCode + ''' AND whsCode = ''' + @WhsCode + ''')
+				BEGIN
+					DELETE FROM ['+ @BDE + '].purchase.ZonaProveedor WHERE cardcode = ''' + @CardCode + ''' AND whsCode = ''' + @WhsCode + '''
+				END
+			'
+			EXEC(@QRY)
 
-BEGIN TRY  
+			IF ISNULL(@IdZona, '') <> ''
+			BEGIN
+				SET @QRY = '
+				DECLARE @ZONANAME VARCHAR(100) = (SELECT Zona FROM '+@BDE+'.purchase.zonascompra ZC  WHERE Zona ='''+@IdZona+''');
 
-        SET @QRY = '
-		DECLARE @ZONANAME VARCHAR(100) = (SELECT Zona FROM '+@BDE+'.purchase.zonascompra ZC  where Id_Zona='''+@IdZona+''');		
-	    insert into '+@BDE+'.PURCHASE.ZonaProveedor 
-		select 
-		'''+@CardCode+'''  AS [CardCode],
-		ZA.Zona,
-		ZA.WhsCode,
-		CASE 
-		--	WHEN '''+@IdZona+''' = ZA.WhsCode
-		WHEN (select COUNT(*) FROM '+@BDE+'.purchase.ZonasAlmacenes ZI where ZI.Zona = ''''+@ZONANAME+'''' ) = 1
-				THEN 1 
-				ELSE 0
-		END [Independiente]
-		FROM '+@BDE+'.purchase.ZonasAlmacenes	ZA 
-		where 
-	    NOT EXISTS
-		(
-		SELECT*FROM '+@BDE+'.PURCHASE.ZonaProveedor	ZP	
-		WHERE ZP.CardCode = '''+@CardCode+''' AND ZA.WhsCode = ZP.WhsCode
-		)
-		AND Zona = ''''+@ZONANAME+''''
+				INSERT INTO '+@BDE+'.PURCHASE.ZonaProveedor 
+				SELECT 
+					'''+@CardCode+'''  AS [CardCode]
+					, ZA.Zona
+					, ZA.WhsCode
+					, CASE 
+						WHEN (SELECT COUNT(*) FROM '+@BDE+'.purchase.ZonasAlmacenes ZI WHERE ZI.Zona = ''''+@ZONANAME+'''' ) = 1 THEN 1 
+						ELSE 0
+					  END [Independiente]
+				FROM '+@BDE+'.purchase.ZonasAlmacenes	ZA 
+				WHERE 
+					NOT EXISTS ( SELECT*FROM '+@BDE+'.PURCHASE.ZonaProveedor ZP	WHERE ZP.CardCode = '''+@CardCode+''' AND ZA.WhsCode = ZP.WhsCode)
+					AND Zona = ''''+@ZONANAME+''''
+					AND ZA.WhsCode = ''' + @WhsCode + '''
+				'
+				EXEC(@QRY)
 
-		select ''Zona agregada correctamente'' AS [MESSAGE]
-		'
-
-	
-	
-	EXEC(@QRY)
-
-	 
-
-END TRY  
-BEGIN CATCH     
-select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
-END CATCH  
+			END
+			SELECT 'Zona agregada correctamente' AS [MESSAGE]
+		END TRY  
+		BEGIN CATCH     
+			SELECT 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+		END CATCH  
     END 
-   
+
    -- ELIMINAR Zonas a provedoor
 	IF @TipoConsulta = 7
 	BEGIN
@@ -648,8 +665,20 @@ END CATCH
     END
 
 
-
-
+	IF @TipoConsulta = 21
+	BEGIN
+		SELECT '' Zona, '' Zona
+		UNION ALL
+		SELECT
+			A.Zona Zona
+			, A.Zona Zona
+		FROM 
+			purchase.ZonasAlmacenes A
+			JOIN purchase.ZonasCompra B ON A.Zona = B.Zona
+		WHERE 
+			B.Tipo = @Tipo
+			AND A.WhsCode = @WhsCode
+	END
  END
 
  
