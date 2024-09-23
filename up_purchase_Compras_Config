@@ -1,0 +1,656 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_purchase_Compras_Conf]    Script Date: 23/09/2024 09:40:11 a. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+ALTER procedure [dbo].[up_purchase_Compras_Conf]		
+		  @TipoConsulta int,
+		  @Empresa varchar(30),
+		  @CardCode varchar(MAX) = NULL,
+		  @Tipo varchar(50) = NULL,
+		  @Independiente NVARCHAR(10) = NULL,
+		  @IdZona varchar (30) = NULL,
+		  @WhsCode varchar (30) = NULL,
+		  @Zona varchar (30) = NULL,
+		  --
+		  @Resta varchar (30) = NULL,
+		  @Obligatorio varchar (30) = NULL,
+		  @RestriccionABC varchar (30) = NULL,
+		  @Proveedores   varchar (MAX) = NULL,
+		  @Compradores varchar (MAX) = NULL,
+		  @Comprador varchar (MAX) = NULL,
+		  @Unidad varchar (MAX) = NULL,
+		  @Origen VARCHAR(15) = NULL,
+		  @Destino VARCHAR(15) = NULL,
+		  @AlmacenComprador VARCHAR(15) = NULL,
+		  @Orden VARCHAR(15) = NULL,
+		  @TipoConsultaN VARCHAR(15) = NULL,
+		  @IsZona VARCHAR(15) = NULL,
+		  @Prioridad VARCHAR(15) = NULL,
+		  @CalcularIdeal VARCHAR(15) = NULL,
+		  @AgruparIdeal VARCHAR(15) = NULL,
+		  @TipoConsultaWeb VARCHAR(15) = NULL,
+		  @EmpresaDestinos varchar(MAX) = NULL,
+		  @Grupo INT = NULL,
+		  @HP VARCHAR(200) = NULL
+
+   AS
+
+   Begin
+          DECLARE   @QRY varchar(MAX) =''
+		  DECLARE   @QRYAUX varchar(MAX) =''
+          DECLARE   @BD VARCHAR(50) = ''
+		  DECLARE   @BDE VARCHAR(50) = ''
+		 
+	    IF @Empresa = 'DPJ'  BEGIN SET @BD = 'SBODPJ' SET  @BDE='Halconet'  END          		   
+		IF @Empresa = 'CTRZ' BEGIN SET @BD = 'SBOCTRZ' SET @BDE='HNT_TRZ' END
+		IF @Empresa = 'SERVIMPO' BEGIN SET @BD = 'SBOSERVIMPO' SET @BDE='HNT_SERVIMPO' END
+
+  IF @TipoConsulta =  1
+     
+	 BEGIN
+
+	 SET @QRY='
+	 select Code AS [Codigo], [Name] AS  [Nombre]  from '+@BD+'.dbo.[@HNT_COMPRADOR]
+	 '
+	 EXEC(@QRY)
+
+
+	 END
+
+ --ZonasProveedor 
+	IF @TipoConsulta = 2
+	BEGIN
+	SET @QRY='	
+	SELECT
+			A.CardCode Proveedor,
+			A.Zona,
+			B.WhsCode,
+			B.WhsName [Almacén],
+			A.Independiente [Almacén independiente]
+		From 
+			'+@BDE+'.purchase.ZonaProveedor A
+			INNER JOIN ['+@BD+'].dbo.OWHS B ON A.WhsCode = B.WhsCode
+		WHERE 
+	    A.CardCode = '''+@CardCode+'''
+		ORDER BY A.Zona asc
+	'		
+ EXEC(@QRY)
+ 
+ END
+
+
+
+	IF @TipoConsulta = 3
+	BEGIN
+
+	SET @QRY='	
+		Select CardCode [Codigo], CardName + '' ['' + CardCode + '']'' Nombre , GroupCode, ISNULL(U_VLGX_HP,0) HP
+		From '+@BD+'.dbo.OCRD 
+		Where CardType = ''S'' AND U_VLGX_PLC IS NOT NULL
+		AND frozenFor = ''N'' AND GroupCode IN (104,105,106,107) 
+		Order By CardCode ASC
+
+	'		
+ EXEC(@QRY)
+ 
+ END
+
+ --PROVEEDORES EN TABLA
+	IF @TipoConsulta = 4
+	BEGIN
+	SET @QRY='	
+	 SELECT 
+      [P].CardCode AS [Codigo],
+	  CONCAT(CardName,'' ['',CardCode,'']'') AS [Nombre],    
+	  [C].[Name] AS [Comprador],
+	  [P].U_UnidCompra [Unidad],
+	  [G].GroupName AS [Grupo],
+	  [P].U_Tipocompra,
+	  [P].U_VLGX_HP [HP]
+ FROM '+@BD+'.DBO.OCRD [P]
+       LEFT join '+@BD+'.dbo.[@HNT_COMPRADOR] [C] on [C].Code = [P].U_VLGX_PLC
+	   LEFT join '+@BDE+'.logistics.Reportes_Grupos    [G] on   [P].U_Tipocompra = [G].GroupCode        
+      Where CardType = ''S'' 
+	  AND U_VLGX_PLC IS NOT NULL 
+	  AND frozenFor = ''N''
+	  AND [P].GroupCode IN (104,105,106,107) 
+	  '
+	 IF @Proveedores <> ''
+	 SET @QRY += 'AND CardCode IN ('+@Proveedores+')'	
+	 IF @Compradores <> ''
+	 SET @QRY += 'AND [C].Code IN ('+@Compradores+')'		
+	 SET @QRY += '	 	  
+	 -- AND QryGroup45=''Y''
+	  Order By [P].CardCode ASC
+	'		
+ 	 EXECUTE (@QRY)
+
+ END
+ 
+  --ZONAS SIN ASIGNAR A PROVEEDOR
+	IF @TipoConsulta = 5
+	BEGIN
+	SET @QRY='		
+	SELECT 
+    ZC.Id_Zona,
+	ZC.Zona,
+	AlmacenComprador [WhsCode],
+	B.WhsName [_Almacén Destino],
+	Tipo  
+	FROM  '+@BDE+'.purchase.zonascompra ZC 
+    INNER JOIN '+@BD+'.dbo.OWHS B ON ZC.AlmacenComprador = B.WhsCode
+	WHERE ZC.Tipo = '''+@Tipo+''' 
+	AND
+	 NOT exists ( 
+	 SELECT  *  FROM '+@BDE+'.purchase.ZonaProveedor ZP 
+	 WHERE   ZP.[WhsCode] = ZC.AlmacenComprador and  ZP.CardCode='''+@CardCode+'''
+	--  AND ZP.Zona = ZC.Zona
+	  )	
+	  ORDER BY ZC.Zona ASC
+	'		
+ EXEC(@QRY)
+ 
+ END
+ 
+   -- Agregar Zonas a provedoor
+	IF @TipoConsulta = 6
+	BEGIN
+
+BEGIN TRY  
+
+        SET @QRY = '
+		DECLARE @ZONANAME VARCHAR(100) = (SELECT Zona FROM '+@BDE+'.purchase.zonascompra ZC  where Id_Zona='''+@IdZona+''');		
+	    insert into '+@BDE+'.PURCHASE.ZonaProveedor 
+		select 
+		'''+@CardCode+'''  AS [CardCode],
+		ZA.Zona,
+		ZA.WhsCode,
+		CASE 
+		--	WHEN '''+@IdZona+''' = ZA.WhsCode
+		WHEN (select COUNT(*) FROM '+@BDE+'.purchase.ZonasAlmacenes ZI where ZI.Zona = ''''+@ZONANAME+'''' ) = 1
+				THEN 1 
+				ELSE 0
+		END [Independiente]
+		FROM '+@BDE+'.purchase.ZonasAlmacenes	ZA 
+		where 
+	    NOT EXISTS
+		(
+		SELECT*FROM '+@BDE+'.PURCHASE.ZonaProveedor	ZP	
+		WHERE ZP.CardCode = '''+@CardCode+''' AND ZA.WhsCode = ZP.WhsCode
+		)
+		AND Zona = ''''+@ZONANAME+''''
+
+		select ''Zona agregada correctamente'' AS [MESSAGE]
+		'
+
+	
+	
+	EXEC(@QRY)
+
+	 
+
+END TRY  
+BEGIN CATCH     
+select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+    END 
+   
+   -- ELIMINAR Zonas a provedoor
+	IF @TipoConsulta = 7
+	BEGIN
+
+BEGIN TRY   
+	SET @QRY='
+	DELETE from '+@BDE+'.PURCHASE.ZonaProveedor 
+	where  WhsCode='''+@WhsCode+''' AND CardCode='''+@CardCode+'''
+	'
+	  EXEC(@QRY)
+	  select 'Zona Eliminada correctamente' AS [MESSAGE]
+END TRY  
+BEGIN CATCH     
+   rollback
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+ 
+
+
+  --ZONAS existentes
+	IF @TipoConsulta = 8
+	BEGIN
+	SET @QRY='	
+	SELECT
+	ZC.Id_Zona,
+	ZC.Zona,
+	AlmacenComprador,
+	B.WhsName [Almacén Destino],
+	Orden,
+	TipoConsulta,
+	Prioridad,
+	Tipo,
+	Tipo_Consulta_WEB,
+	IsZona,
+	CalcularIdeal [Calcular_Ideal],
+    AgruparIdeal [Agrupar_Ideal]
+	FROM  '+@BDE+'.purchase.zonascompra ZC 
+    INNER JOIN '+@BD+'.dbo.OWHS B ON ZC.AlmacenComprador = B.WhsCode
+	'		
+ EXEC(@QRY)
+ 
+ END
+ 
+   --Almacenes asignados 
+	IF @TipoConsulta = 9
+	BEGIN
+	SET @QRY='		
+        select
+        O.WhsCode [Codigo],
+		ZA.Zona,
+		O.WhsName   [Almacen],
+		ZA.Obligatorio,
+		ZA.Resta,
+		ZA.RestriccionABC
+	    from '+@BDE+'.purchase.ZonasAlmacenes ZA
+	    INNER JOIN '+@BD+'.dbo.OWHS O ON ZA.WhsCode = O.WhsCode
+	    where ZA.Zona = '''+@Zona+'''
+	'		
+ EXEC(@QRY)
+ 
+ END
+ 
+    --Almacenes disponibles
+	IF @TipoConsulta = 10
+	BEGIN
+	SET @QRY='		
+       	
+	SELECT
+	    O.WhsCode   [Codigo],
+		O.WhsName   [Almacen]
+	FROM  '+@BD+'.dbo.OWHS O
+	WHERE NOT EXISTS
+	(
+	 select *
+	    from '+@BDE+'.purchase.ZonasAlmacenes ZA 
+		WHERE ZA.WhsCode = O.WhsCode AND ZA.Zona = '''+@Zona+''' 
+	)
+	
+	'		
+ EXEC(@QRY)
+ 
+ END
+ 
+   
+   -- ELIMINAR Almacen asignado a zona
+	IF @TipoConsulta = 11
+	BEGIN
+
+BEGIN TRY   
+	SET @QRY='
+	  DELETE from '+@BDE+'.purchase.ZonasAlmacenes   where Zona = '''+@Zona+''' and WhsCode='''+@WhsCode+'''
+	'
+	  EXEC(@QRY)
+	  select 'Almacén Eliminado correctamente' AS [MESSAGE]
+END TRY  
+BEGIN CATCH     
+   rollback
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+
+   -- Agregar Zonas a proveedor
+	IF @TipoConsulta = 12
+	BEGIN
+	
+BEGIN TRY  
+
+        SET @QRY = '
+		insert into '+@BDE+'.purchase.ZonasAlmacenes values ('''+@Zona+''','''+@WhsCode+''','+@Resta+','+@Obligatorio+','+@RestriccionABC+')
+		'		
+	EXEC(@QRY)
+
+	 select 'Almacén agregado correctamente' AS [MESSAGE]
+
+END TRY  
+BEGIN CATCH     
+select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+   
+   END 
+
+
+
+   -- Actualizar Datos a provedoor
+
+	IF @TipoConsulta = 13
+	BEGIN
+BEGIN TRY  
+		IF @HP = ''
+		BEGIN 
+			  SET @HP = 'NULL'
+		END
+	SET @QRY='
+		UPDATE '+@BD+'.dbo.OCRD SET  U_UnidCompra = '''+@Unidad+''', U_VLGX_PLC = '''+@Comprador+''', U_TipoCompra = '+CAST(@Grupo AS VARCHAR)+', U_VLGX_HP = '+CAST(@HP AS VARCHAR)+'  WHERE CardCode = '''+@CardCode+'''
+		select ''Proveedor actualizado correctamente'' AS [MESSAGE]
+	'
+	EXEC(@QRY)
+	--PRINT (@QRY)
+END TRY  
+BEGIN CATCH     
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+	  -- Actualizar Datos a provedoor
+
+	IF @TipoConsulta = 14
+	BEGIN
+
+BEGIN TRY   
+	SET @QRY='
+				DECLARE @TipoCompra int = (select U_Tipocompra from '+@BD+'.dbo.OCRD where CardCode = '''+@Origen+''');
+				DECLARE @U_VLGX_PLC NVARCHAR(10) = (select U_VLGX_PLC from '+@BD+'.dbo.OCRD where CardCode = '''+@Origen+''');
+				DELETE from '+@BDE+'.PURCHASE.ZonaProveedor where CardCode = '''+@Destino+'''
+				-----------------------------------------------------------------------------------------
+					insert 
+						 into '+@BDE+'.PURCHASE.ZonaProveedor
+					Select '''+@Destino+''', 
+						 Zona, 
+						 WhsCode, 
+						 Independiente 
+					from '+@BDE+'.PURCHASE.ZonaProveedor 
+					where CardCode = '''+@Origen+'''
+
+					update '+@BD+'.dbo.OCRD 
+						  set 
+							 U_Tipocompra = @TipoCompra,
+							 U_VLGX_PLC =   @U_VLGX_PLC
+						  where CardCode = '''+@Destino+'''
+					 select ''Configuración copiada correctamente'' AS [MESSAGE]'
+	EXECUTE(@QRY)
+	--PRINT (@QRY)
+END TRY  
+BEGIN CATCH     
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+	  -- ELIMINAR Zona existente
+	IF @TipoConsulta = 15
+	BEGIN
+
+BEGIN TRY   
+	SET @QRY='
+	DELETE FROM '+@BDE+'.purchase.zonascompra where Id_Zona = '''+@IdZona+'''
+	'
+	  EXEC(@QRY)
+	  select 'Zona eliminada correctamente' AS [MESSAGE]
+END TRY  
+BEGIN CATCH     
+   rollback
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+
+
+	IF @TipoConsulta = 16
+	BEGIN
+
+BEGIN TRY   
+
+
+	SET @QRY='
+	 Declare @TipoGrup varchar (50) = (select GroupName [Nombre] from '+@BDE+'.[logistics].[Reportes_Grupos] where GroupCode = '+@Tipo+');
+
+		insert into '+@BDE+'.purchase.zonascompra 
+		        values ('''+@IdZona+''',
+				         '''+@Zona+''',
+						 '''+@AlmacenComprador+''',
+						 '+@Orden+',
+						 '+@TipoConsultaN+',
+						 '+@IsZona+',
+						 '+@Prioridad+',
+						 ''''+@TipoGrup+'''',
+						 '+@CalcularIdeal+',
+						 '+@AgruparIdeal+',
+						 '+@TipoConsultaWeb+');
+	 select ''Zona registrada correctamente'' AS [MESSAGE]
+	'
+	EXEC(@QRY)
+	--PRINT (@QRY)
+END TRY  
+BEGIN CATCH     
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+
+	   --Almacenes Existentes
+	IF @TipoConsulta = 17
+	BEGIN
+	SET @QRY='		       	
+	SELECT
+	    O.WhsCode   [Codigo],
+		O.WhsName   [Almacen]
+	FROM  '+@BD+'.dbo.OWHS O
+	'		
+ EXEC(@QRY)
+ 
+ END
+
+
+ 	   --GRUPOS Existentes
+	IF @TipoConsulta = 18
+	BEGIN
+	SET @QRY='select
+	 GroupCode [Codigo],
+	 GroupName [Nombre]
+	 from '+@BDE+'.[logistics].[Reportes_Grupos]'		
+ EXEC(@QRY)
+ 
+ END
+
+
+ --Actualizar Zona información
+	IF @TipoConsulta = 19
+	BEGIN
+
+BEGIN TRY   
+						
+	SET @QRY='
+	
+	update '+@BDE+'.purchase.zonascompra 
+				SET  
+				Zona = '''+@Zona+''',
+				Orden = '+@Orden+',
+				TipoConsulta = '+@TipoConsultaN+',
+				IsZona = '+@IsZona+',
+				Prioridad = '+@Prioridad+',
+				CalcularIdeal = '+@CalcularIdeal+',
+				AgruparIdeal = '+@AgruparIdeal+',
+				Tipo_Consulta_WEB = '+@TipoConsultaWeb+' 
+		WHERE Id_Zona = '''+@IdZona+'''
+
+	 select ''Zona actualizada correctamente'' AS [MESSAGE]
+	'
+	EXEC(@QRY)
+	--PRINT (@QRY)
+END TRY  
+BEGIN CATCH     
+    select 'Error: ' + ERROR_MESSAGE() AS [MESSAGE]   
+END CATCH  
+
+    END
+
+
+
+	--copiar configuracion en CTRZ, DPJ, SERVIMPO
+
+	IF @TipoConsulta = 20
+	BEGIN
+
+	BEGIN TRY   
+
+		--- validar existencia de proveedores en BD
+
+		IF @Origen = @Destino
+		BEGIN
+			  RAISERROR('El origen y destino de datos no puede ser el mismo.' , 11,1);
+		END
+
+		create table #TempUTipoCompra (
+		U_TipoCompra int 
+		)
+
+		DECLARE @EmpresaCursor AS nvarchar(400);
+		DECLARE @U_TipoCompra INT;
+		DECLARE Validaciones CURSOR FOR SELECT item FROM [HNT_TRZ].[dbo].fu_hnt_OBTIENE_TABLA_DE_ARRAY([HNT_TRZ].[dbo].fu_hnt_OBTIENE_ARRAY(@EmpresaDestinos,';')) WHERE Item <> ''
+		OPEN Validaciones
+		FETCH NEXT FROM Validaciones INTO @EmpresaCursor
+		WHILE @@fetch_status = 0
+		BEGIN		
+			IF @EmpresaCursor = 'DPJ'  BEGIN SET @BD = 'SBODPJ' SET  @BDE='Halconet'  END          		   
+			IF @EmpresaCursor = 'CTRZ' BEGIN SET @BD = 'SBOCTRZ' SET @BDE='HNT_TRZ' END
+			IF @EmpresaCursor = 'SERVIMPO' BEGIN SET @BD = 'SBOSERVIMPO' SET @BDE='HNT_SERVIMPO' END
+
+
+			SET @QRYAUX ='
+						SELECT U_TipoCompra FROM '+@BD+'.dbo.OCRD WHERE CardCode = '''+@Origen+'''
+						UNION ALL
+						SELECT U_TipoCompra FROM '+@BD+'.dbo.OCRD WHERE CardCode = '''+@Destino+'''
+						UNION ALL'
+			
+			SET @QRY ='
+
+			DECLARE @Mensaje VARCHAR(500) = '''';		
+			IF NOT EXISTS (select CardCode from '+@BD+'.dbo.OCRD where CardCode = '''+@Origen+''')
+			BEGIN
+				 set @Mensaje = '' No existe el codigo de proveedor '' + '''+@Origen+''' + '' en la empresa '' + '''+@EmpresaCursor+'.'';
+				 RAISERROR(@Mensaje , 11,1)		
+			END
+			IF NOT EXISTS (select CardCode from '+@BD+'.dbo.OCRD where CardCode = '''+@Destino+''')
+			BEGIN
+				 set @Mensaje = '' No existe el codigo de proveedor '' + '''+@Destino+''' + '' en la empresa '' + '''+@EmpresaCursor+'.'';
+				 RAISERROR(@Mensaje , 11,1)		
+			END
+
+
+
+			'
+
+			EXECUTE (@QRY)
+
+			FETCH NEXT FROM Validaciones INTO @EmpresaCursor
+		END
+		CLOSE Validaciones
+		DEALLOCATE Validaciones
+
+
+
+		SET @QRYAUX = LEFT(@QRYAUX, LEN(@QRYAUX) - 9)
+		INSERT INTO #TempUTipoCompra
+		EXEC(@QRYAUX)
+
+		IF (SELECT COUNT(DISTINCT U_TipoCompra) FROM #TempUTipoCompra) > 1
+		BEGIN
+			 RAISERROR('Para poder actualizar el grupo debe ser el mismo para las empresas a actualizar, verifica tu información' , 11,1)		
+		END
+		
+		--- validar existencia de proveedores en BD
+
+
+		 IF @Empresa = 'DPJ'  BEGIN SET @BD = 'SBODPJ' SET  @BDE='Halconet'  END          		   
+		 IF @Empresa = 'CTRZ' BEGIN SET @BD = 'SBOCTRZ' SET @BDE='HNT_TRZ' END
+		 IF @Empresa = 'SERVIMPO' BEGIN SET @BD = 'SBOSERVIMPO' SET @BDE='HNT_SERVIMPO' END
+	
+		SET @QRY = '	
+		DECLARE @TipoCompra INT = (select U_Tipocompra from '+@BD+'.dbo.OCRD where CardCode = '''+@Origen+''');
+		DECLARE @U_VLGX_PLC NVARCHAR(10) = (select U_VLGX_PLC from '+@BD+'.dbo.OCRD where CardCode = '''+@Origen+''');
+		DELETE from '+@BDE+'.PURCHASE.ZonaProveedor where CardCode = '''+@Destino+'''
+			
+			insert into '+@BDE+'.PURCHASE.ZonaProveedor
+						Select '''+@Destino+''', 
+							 Zona, 
+							 WhsCode, 
+							 Independiente 
+						from '+@BDE+'.PURCHASE.ZonaProveedor 
+						where CardCode = '''+@Origen+'''
+
+						update '+@BD+'.dbo.OCRD 
+							  set 
+								 U_Tipocompra = @TipoCompra,
+								 U_VLGX_PLC =   @U_VLGX_PLC
+							  where CardCode = '''+@Destino+'''					 				
+			'			
+
+		DECLARE @EmpresaCopiar AS nvarchar(400)
+		DECLARE Copiar CURSOR FOR SELECT item FROM [HNT_TRZ].[dbo].fu_hnt_OBTIENE_TABLA_DE_ARRAY([HNT_TRZ].[dbo].fu_hnt_OBTIENE_ARRAY(@EmpresaDestinos,';')) WHERE Item not in('',@Empresa )
+		OPEN Copiar
+		FETCH NEXT FROM Copiar INTO @EmpresaCopiar
+		WHILE @@fetch_status = 0
+		BEGIN		
+							
+		 IF @EmpresaCopiar = 'DPJ'  BEGIN SET @BD = 'SBODPJ' SET  @BDE='Halconet'  END          		   
+		 IF @EmpresaCopiar = 'CTRZ' BEGIN SET @BD = 'SBOCTRZ' SET @BDE='HNT_TRZ' END
+		 IF @EmpresaCopiar = 'SERVIMPO' BEGIN SET @BD = 'SBOSERVIMPO' SET @BDE='HNT_SERVIMPO' END
+	
+		SET @QRY += '
+		DELETE from '+@BDE+'.PURCHASE.ZonaProveedor where CardCode = '''+@Destino+'''	
+	
+		     		insert into '+@BDE+'.PURCHASE.ZonaProveedor
+						Select '''+@Destino+'''	, 
+							 Zona, 
+							 WhsCode, 
+							 Independiente 
+						from '+ CASE WHEN @Empresa = 'DPJ' THEN  'HALCONET' 
+									 WHEN @Empresa = 'CTRZ' THEN  'HNT_TRZ' 
+									 WHEN @Empresa = 'SERVIMPO' THEN  'HNT_SERVIMPO' 
+						END +'.PURCHASE.ZonaProveedor 
+						where CardCode = '''+@Origen+'''	
+
+						update '+@BD+'.dbo.OCRD 
+							  set 
+								 U_Tipocompra = @TipoCompra,
+								 U_VLGX_PLC =   @U_VLGX_PLC
+							  where CardCode = '''+@Destino+'''	
+							  '
+
+
+		FETCH NEXT FROM Copiar INTO @EmpresaCopiar
+		END
+		CLOSE Copiar
+		DEALLOCATE Copiar
+
+		exec (@QRY)
+
+		select 'Configuración copiada correctamente' AS [MESSAGE]
+
+
+
+	END TRY  
+	BEGIN CATCH     
+		SELECT 'Error: ' + ERROR_MESSAGE() AS [MESSAGE] 	
+	END CATCH  
+
+    END
+
+
+
+
+ END
+
+ 
+
