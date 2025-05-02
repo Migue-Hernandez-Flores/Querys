@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 23/04/2025 08:33:01 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 02/05/2025 12:48:19 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -112,6 +112,12 @@ ALTER PROCEDURE [dbo].[up_finance_SolicitudOC]
 	,@PresupuestoCuenta		DECIMAL(18,4) = NULL
 	,@TotalRequisicion		DECIMAL(18,4) = NULL
 	,@Comments				VARCHAR(254) = NULL
+	,@NumArchivos			INT = NULL
+	,@IdSolicitudCompra		INT = NULL
+	,@IdSolicitudRequsicion INT = NULL
+	,@Presupuesto			DECIMAL(18, 4) = NULL 
+	,@Consumido				DECIMAL(18, 4) = NULL
+
 AS
 BEGIN
 	DECLARE @Rol INT; DECLARE @Sucursal VARCHAR(10); DECLARE @RHNumEmp VARCHAR(10); 
@@ -290,16 +296,16 @@ BEGIN
 			END
 			ELSE IF @OPC = 7
 			BEGIN
-				-- Administrador
-				IF @Rol IN (1)  SELECT 0 Administrador, 0 Cta, 0 Autorizacion, 0 Presupuesto 
-				-- Verónica Sosa
-				ELSE IF @Rol IN (21) SELECT 0 Administrador, 1 Cta, 0 Autorizacion, 0 Presupuesto 
-				-- Patricia
-				ELSE IF @Rol IN (47) SELECT 0 Administrador, 0 Cta, 0 Autorizacion, 1 Presupuesto 
-				-- Responsable de la cuenta
-				ELSE IF EXISTS(SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario) SELECT 0 Administrador, 0 Cta, 1 Autorizacion, 0 Presupuesto
-				-- General
-				ELSE SELECT 0 Administrador, 0 Cta, 0 Autorizacion, 0 Presupuesto
+				-- RESPONSABLE DE LA CUENTA
+				IF EXISTS(SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario and AcctCode = @Cuenta) SET @PermisoAut = 1 ELSE SET @PermisoAut = 0
+				-- ADMINISTRADOR
+				IF @Rol IN (1)  SELECT 0 Administrador, 0 Cta, @PermisoAut Autorizacion, 0 Presupuesto 
+				-- VERÓNICA SOSA
+				ELSE IF @Rol IN (21) SELECT 0 Administrador, 1 Cta, @PermisoAut Autorizacion, 0 Presupuesto 
+				-- PATRICIA
+				ELSE IF @Rol IN (47) SELECT 0 Administrador, 0 Cta, @PermisoAut Autorizacion, 1 Presupuesto 
+				-- GENERAL
+				ELSE SELECT 0 Administrador, 0 Cta, @PermisoAut Autorizacion, 0 Presupuesto
 			END
 		END
 		--CATALOGOS
@@ -693,29 +699,93 @@ BEGIN
 				-- Catalogo de cuentas para requisiciones
 				ELSE IF ISNULL(@OPC, 1) = 19
 				BEGIN
-					SET @QRY = ' 
-			SELECT ''0000-000-000'' Cuenta, ''Otros'' Nombre 
-			'
-			SET @QRY += '
-				UNION ALL
-				SELECT AcctCode Cuenta, AcctName Nombre
-				FROM SBOCTRZ.dbo.OACT 
-				WHERE 
-					AcctCode LIKE ''6%'' 
-					AND Postable = ''Y'' 
-					AND FrozenFor = ''N''
-			'
-			IF @Usuario NOT IN (69) AND @PermisoVis = 0
-			BEGIN
-				IF @Usuario in (4530) BEGIN SET @Qry += ' 
-					AND AcctCode IN (SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario)
-				' END
-				ELSE BEGIN SET @Qry += ' 
-					AND AcctCode IS NULL;
-				' END
-			END
-			SET @paramDefinition = N'@Usuario INT'
-			EXEC sp_executesql @QRY, @paramDefinition, @Usuario 
+					SET @QRY = ' SELECT ''0000-000-000'' Cuenta, ''Otros'' Nombre'
+					SET @QRY += '
+						UNION ALL
+						SELECT AcctCode Cuenta, AcctName Nombre
+						FROM SBOCTRZ.dbo.OACT 
+						WHERE 
+							AcctCode LIKE ''6%'' 
+							AND Postable = ''Y'' 
+							AND FrozenFor = ''N'''
+					IF @Usuario NOT IN (69) AND ISNULL(@PermisoVis, 0) = 0
+					BEGIN
+						IF @Usuario in (4530) 
+						BEGIN 
+							SET @Qry += ' AND AcctCode IN (SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario)' 
+						END
+						ELSE 
+						BEGIN 
+							SET @Qry += ' AND AcctCode IS NULL;'
+						END
+					END
+
+					SET @paramDefinition = N'@Usuario INT'
+					EXEC sp_executesql @QRY, @paramDefinition, @Usuario 
+				END
+				ELSE IF ISNULL(@OPC, 1) = 20
+				BEGIN
+					SELECT 1 AS [Id], NULL AS [ParentId], '¿Qué funciones tiene la Barra de Herramientas?' AS [Texto] UNION ALL
+					SELECT 2, NULL, '¿Cómo buscar información de un proveedor?' UNION ALL
+					SELECT 3, NULL, '¿Qué incluye la sección de Información General?' UNION ALL
+					SELECT 4, NULL, '¿Cómo agregar registros en Detalle/Partidas?' UNION ALL
+					SELECT 5, NULL, '¿Qué hace cada botón en la Barra de Herramientas del Detalle?' UNION ALL
+					SELECT 6, NULL, '¿Cómo subir documentos electrónicos?' UNION ALL
+					SELECT 7, NULL, '¿Qué muestra la sección Resumen?' UNION ALL
+
+					-- Subpreguntas de la Barra de Herramientas
+					SELECT 8, 1, 'Buscar: Permite la busqueda y consulta de folios de solicitud de orden de compra.' UNION ALL
+					SELECT 9, 1, 'Nuevo: Limpia todos los campos para iniciar un registro nuevo.' UNION ALL
+					SELECT 10, 1, 'Guardar: Guarda los datos capturados y los prepara para generar el documento en SAP.' UNION ALL
+					SELECT 11, 1, 'Modo Oscuro/Claro: Cambia el tema del formulario para mayor comodidad.' UNION ALL
+					SELECT 12, 1, 'FAQs: Abre la sección de preguntas frecuentes.' UNION ALL
+
+					-- Subpreguntas de búsqueda de proveedor
+					SELECT 13, 2, 'Buscar por clave: Escribe la clave del proveedor en el campo Proveedor y presiona Enter.' UNION ALL
+					SELECT 14, 2, 'Buscar por nombre: Escribe el nombre (o parte de él) entre asteriscos (*) en el campo Nombre.' UNION ALL
+					SELECT 15, 2, 'Seleccionar proveedor: Si la búsqueda es correcta, se abrirá la ventana "Lista de SN" y haz doble clic en el proveedor.' UNION ALL
+
+					-- Subpreguntas de Información General
+					SELECT 16, 3, 'Folio Solicitud: Muestra el folio generado al guardar la solicitud.' UNION ALL
+					SELECT 17, 3, 'Fecha del Documento: Indica cuándo se registró la solicitud.' UNION ALL
+					SELECT 18, 3, 'Fecha de Contabilización: Fecha de registro contable de la solicitud.' UNION ALL
+					SELECT 19, 3, 'Fecha de Vencimiento: Fecha de vencimiento de la solicitud.' UNION ALL
+					SELECT 20, 3, 'Estatus Actual: Muestra el estado final de la solicitud o algún error si aplica.' UNION ALL
+
+					-- Subpreguntas para agregar registros en Detalle/Partidas
+					SELECT 21, 4, 'Carga Manual: Haz clic en el botón "+" para agregar una nueva fila.' UNION ALL
+					SELECT 22, 4, 'Carga por Template: Haz clic en el clip, selecciona "Carga por Template" y elige un archivo válido.' UNION ALL
+					SELECT 23, 4, 'Carga por XML: Haz clic en el clip, selecciona "Carga por XML" y carga tu archivo XML.' UNION ALL
+
+					-- Subpreguntas sobre Barra de Herramientas del Detalle
+					SELECT 24, 5, 'Botón de engrane: Abre la ventana de "Formato de tabla".' UNION ALL
+					SELECT 25, 5, 'Botón de Excel: Exporta el contenido de la tabla a un archivo Excel.' UNION ALL
+					SELECT 26, 5, 'Botón de más: Agrega manualmente un nuevo registro a la tabla.' UNION ALL
+					SELECT 27, 5, 'Botón de clip: Despliega opciones para cargar registros (Template o XML).' UNION ALL
+					SELECT 28, 5, 'Botón Generar en SAP: Crea una orden de compra a partir de los datos capturados.' UNION ALL
+
+					-- Subpreguntas sobre Documentos Electrónicos
+					SELECT 29, 6, 'Carga manual: Haz clic en el clip y selecciona un XML y su PDF al mismo tiempo.' UNION ALL
+					SELECT 30, 6, 'Carga por UUID: Escribe el UUID en "Búsqueda por UUID" y carga los documentos asociados.' UNION ALL
+
+					-- Subpreguntas sobre la sección Resumen
+					SELECT 31, 7, 'Comentarios adicionales: Espacio para especificar el motivo de tu solicitud.' UNION ALL
+					SELECT 32, 7, 'Subtotal: Suma de los importes de todas las partidas.' UNION ALL
+					SELECT 33, 7, 'Redondeo: Ajuste manual si es necesario.(La casilla a lado del campo debe estar marcada)' UNION ALL
+					SELECT 34, 7, 'IVA: Suma automática del impuesto calculado por partida.' UNION ALL
+					SELECT 35, 7, 'Total: Suma final considerando importe e IVA.' UNION ALL
+
+					-- Nueva sección: Validaciones de Documentos
+					SELECT 36, NULL, '¿Cuáles son las validaciones que debe cumplir un documento electrónico?' AS [Texto] UNION ALL
+					SELECT 37, 36, '1.- El RFC del receptor debe ser igual a "CTZ190712MB1".' AS [Texto] UNION ALL
+					SELECT 38, 36, '2.- El XML debe contener un folio electrónico (UUID).' AS [Texto] UNION ALL
+					SELECT 39, 36, '3.- El régimen fiscal del receptor debe ser "601".' AS [Texto] UNION ALL
+					SELECT 40, 36, '4.- Si el receptor pertenece al Régimen Simplificado de Confianza (RESICO - 626), se debe aplicar una retención del 1.25%.' AS [Texto] UNION ALL
+					SELECT 41, 36, '5.- El UUID debe cumplir con las especificaciones del Anexo 20 de la Resolución Miscelánea Fiscal.' AS [Texto] UNION ALL
+					SELECT 42, 36, '6.- El XML debe estar vigente ante el SAT.' AS [Texto] UNION ALL
+					SELECT 43, 36, '7.- El XML debe ser de tipo "Ingreso".' AS [Texto] UNION ALL
+					SELECT 44, 36, '8.- El UUID debe ser válido ante el SAT.' AS [Texto] UNION ALL
+					SELECT 45, 36, '9.- El uso de CFDI debe ser "G03".' AS [Texto]
 				END
 			END TRY
 			BEGIN CATCH
@@ -891,11 +961,15 @@ BEGIN
 				BEGIN
 					IF NOT EXISTS (SELECT Id FROM finance.RequisicionCompra where Id = @IdRequisicion)
 					BEGIN
-						SET @Id = (SELECT ISNULL(MAX(Id) + 1,1) from finance.RequisicionCompra)
+						SET @IdSolicitudCompra = (SELECT MAX(ID) FROM finance.SolicitudCompra)
+						SET @IdSolicitudRequsicion = (SELECT MAX(ID) FROM finance.RequisicionCompra)
+						IF (@IdSolicitudCompra > @IdSolicitudRequsicion) SET @Id = @IdSolicitudCompra + 1
+						ELSE SET @Id = @IdSolicitudRequsicion + 1
+
 						INSERT INTO finance.RequisicionCompra 
-							(Id, Motivo, AcctCode, EstatusRequisicion, UserID, CreateDate,  Updatedate, EstatusDocumentacion, UserCuenta, UserAutorizacion)
+							(Id, Motivo, AcctCode, EstatusRequisicion, UserID, CreateDate,  Updatedate, EstatusDocumentacion, UserCuenta, UserAutorizacion, UserPresupuesto)
 						VALUES
-							(@Id, @Motivo, @Cuenta, @Estatus, @Usuario, GETDATE(), GETDATE(),  'No validado', @Usuario, NULL)
+							(@Id, @Motivo, @Cuenta, @Estatus, @Usuario, GETDATE(), GETDATE(),  'No validado', @Usuario, NULL, NULL)
 						SELECT 'Solicitud almacenada' Msj, @Id Id
 					END
 					ELSE BEGIN
@@ -921,6 +995,7 @@ BEGIN
 						SET @TotalRequisicion = (SELECT Importe FROM finance.CotizacionDetalle WHERE IdRequisicion = 1 AND Autorizado = 'Y')
 						SET @PresupuestoUtilizado = (SELECT SUM(Debit - Credit) + @TotalRequisicion  FROM SBOCTRZ.dbo.JDT1 WHERE Account = @Cuenta AND MONTH(RefDate) = 3 AND YEAR(RefDate) = 2025)
 						SET @PresupuestoCuenta = (SELECT Presupuesto  FROM finance.Gastos_Presupuesto WHERE AcctCode = @Cuenta AND U_Month = 3 AND U_Year = 2025)
+						--IF (@PresupuestoUtilizado <= @PresupuestoCuenta ) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
 						IF (@PresupuestoUtilizado + 1 <= @PresupuestoUtilizado) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
 						ELSE UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Pendiente' WHERE Id = @IdRequisicion
 
@@ -1005,57 +1080,91 @@ BEGIN
 					EXEC [PJ_RH].[dbo].[PJ_Vacaciones] @TipoConsulta = 4, @numemp = @RHNumEmp
 
 					SET @QRY = '
-						SELECT * FROM (
-							SELECT 
-								Id [Folio]
-								, ''Requisición'' [Solicitud]
-								, A.CreateDate [Fecha Creacion]
-								, NULL [Fecha Factura]
-								, B.RH_NumEmpleado NumEmp
-								, B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS Nombre
-								, ISNULL(D.CardName, '''') [Proveedor]
-								, SUM(Importe) [Importe]
-								, CASE 
-									WHEN A.AcctCode = ''0000-000-000'' THEN ''Pendiente selección de cuenta''
-									WHEN ISNULL(C.Autorizado, ''N'') = ''N'' THEN ''Pendiente autorización responsable de la cuenta''
-									WHEN A.EstatusRequisicion = ''Pendiente'' THEN ''Pendiente autorización presupuesto''
-									ELSE A.EstatusRequisicion 
-								  END [Estatus Solicitud]
-								, NULL [Fecha Autorización]
-								, ISNULL(A.EstatusDocumentacion, ''Sin Carga Previa'') [Estatus Documentos]
-								, Motivo
-								, 0 [Activo_Fijo]
-								, NULL [Orden_de_Compra]
-								, NULL [No. Orden_e_Compra]
-								, B.Correo Correo 
-								, NULL [Factura_de_Proveedor]
-							FROM 
-								finance.RequisicionCompra A
-								JOIN hnt.Usuarios B ON A.UserID = B.UserID
-								LEFT JOIN finance.CotizacionDetalle C ON A.Id = C.IdRequisicion AND C.Autorizado = ''Y''
-								LEFT JOIN SBOCTRZ.dbo.OCRD D ON D.CardCode = C.CardCode
-							WHERE CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
-							GROUP BY A.Id, A.CreateDate, B.RH_NumEmpleado, B.Nombre, A.AcctCode, A.EstatusRequisicion, EstatusRequisicion, A.EstatusDocumentacion, A.Motivo, B.Correo, D.CardName, C.Autorizado
-							UNION ALL
-							SELECT 
-								A.Id[Folio]
-								, ''OC'' [Solicitud]
-								, A.CreateDate[Fecha Creacion]
-								, FORMAT(J.DocDate, ''yyyy-MM-dd'') [Fecha factura]
-								, NumEmp
-								, B.Nombre
-								, A.CardName[Proveedor]
-								, Importe
-								, A.Estatus[Estatus Solicitud]
-								, FORMAT(ISNULL(H.UpdateDate, PermissionDate), ''yyyy-MM-dd HH:mm tt'')[Fecha Autorización]
-								, EstatusDocumentacion[Estatus Documentos]
-								, Motivo
-								, CAST(ISNULL(IsActivoFijo, 0) AS bit)[Activo Fijo]
-								, C.TransId [Orden_de_Compra]
-								, F.DocNum [No. Orden de Compra]
-								, E.Correo
-								, J.DOCNUM [Factura_Proveedor]
-							FROM finance.SolicitudCompra A 
+					SELECT * FROM (
+						SELECT 
+							A.Id [Folio]
+							, ''Requisición'' [Solicitud]
+							, A.CreateDate [Fecha Creacion]
+							, NULL [Fecha Factura]
+							, B.RH_NumEmpleado NumEmp
+							, B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS Nombre
+							, ISNULL(D.CardName, '''') [Proveedor]
+							, SUM(Importe) [Importe]
+							, CASE 
+								WHEN A.AcctCode = ''0000-000-000'' THEN ''Pendiente selección de cuenta''
+								WHEN ISNULL(C.Autorizado, ''N'') = ''N'' THEN ''Pendiente autorización responsable de la cuenta''
+								WHEN A.EstatusRequisicion = ''Pendiente'' THEN ''Pendiente autorización presupuesto''
+								ELSE A.EstatusRequisicion 
+								END [Estatus Solicitud]
+							, NULL [Fecha Autorización]
+							, ISNULL(A.EstatusDocumentacion, ''Sin Carga Previa'') [Estatus Documentos]
+							, Motivo
+							, 0 [Activo_Fijo]
+							, F.DocNum [Orden_de_Compra]
+							, NULL [No. Orden_e_Compra]
+							, B.Correo Correo 
+							, NULL [Factura_de_Proveedor]
+						FROM 
+							finance.RequisicionCompra A
+							JOIN hnt.Usuarios B ON A.UserID = B.UserID
+							LEFT JOIN finance.CotizacionDetalle C ON A.Id = C.IdRequisicion AND C.Autorizado = ''Y''
+							LEFT JOIN SBOCTRZ.dbo.OCRD D ON D.CardCode = C.CardCode
+							LEFT JOIN sap.ODRF E ON E.U_FolioSolicitud = A.Id AND E.Indicator = ''HW''
+							LEFT JOIN SBOCTRZ.dbo.OPOR F ON E.TransId = F.DocEntry AND E.ObjType = 22 and E.DocType = ''S''
+						WHERE 
+							CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
+				'
+				-- ROL DE VERÓNICA SOSA
+				IF @Rol = 21 BEGIN SET @QRY += '
+							AND A.AcctCode = ''0000-000-000'' OR UserCuenta = @Usuario
+				' END
+				-- RESPONSABLE DE LA CUENTA
+				IF EXISTS (SELECT * FROM finance.Responsables_Cuentas WHERE UserId = @Usuario) BEGIN SET @QRY += '
+							AND A.AcctCode IN (SELECT X.AcctCode FROM finance.Responsables_Cuentas X WHERE UserId = @Usuario) OR A.UserAutorizacion = @Usuario
+				' END
+				-- ROL DE PATRICIA GONZALEZ
+				IF @ROL = 47 BEGIN SET @QRY += '
+							AND A.EstatusRequisicion IN (''Pendiente'', ''Autorizado'', ''Rechazado'') OR UserPresupuesto = @USUARIO
+				' END
+				IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT)
+				BEGIN
+					IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
+							OR B.RH_NumEmpleado = @NumEmp
+					' 
+					END
+					ELSE BEGIN SET @QRY += ' 
+							AND B.RH_NumEmpleado COLLATE DATABASE_DEFAULT IN (SELECT RHNum FROM #Employees)
+					' END
+				END
+				ELSE IF @Rol IN (24, 1)
+				BEGIN
+					IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
+							AND B.RH_NumEmpleado = @NumEmp
+					' END
+				END
+				SET @QRY += '	
+						GROUP BY A.Id, A.CreateDate, B.RH_NumEmpleado, B.Nombre, A.AcctCode, A.EstatusRequisicion, EstatusRequisicion, A.EstatusDocumentacion, A.Motivo, B.Correo, D.CardName, C.Autorizado, F.DocNum
+						UNION ALL
+						SELECT 
+							A.Id[Folio]
+							, ''OC'' [Solicitud]
+							, A.CreateDate[Fecha Creacion]
+							, FORMAT(J.DocDate, ''yyyy-MM-dd'') [Fecha factura]
+							, NumEmp
+							, B.Nombre
+							, A.CardName[Proveedor]
+							, Importe
+							, A.Estatus[Estatus Solicitud]
+							, FORMAT(ISNULL(H.UpdateDate, PermissionDate), ''yyyy-MM-dd HH:mm tt'')[Fecha Autorización]
+							, EstatusDocumentacion[Estatus Documentos]
+							, Motivo
+							, CAST(ISNULL(IsActivoFijo, 0) AS bit)[Activo Fijo]
+							, C.TransId [Orden_de_Compra]
+							, F.DocNum [No. Orden de Compra]
+							, E.Correo
+							, J.DOCNUM [Factura_Proveedor]
+						FROM 
+							finance.SolicitudCompra A 
 							LEFT JOIN [PJ_RH].dbo.VW_Empleados B on A.NumEmp COLLATE DATABASE_DEFAULT = B.cvetra
 							LEFT JOIN sap.ODRF C ON C.U_FolioSolicitud = A.Id AND Indicator = ''HW''
 							LEFT JOIN finance.SolicitudCompraRelacionXML D ON D.FolioSolicitud = A.Id AND ISNULL(D.U_AjusteManual, D.U_Autorizado) = ''A''
@@ -1065,35 +1174,35 @@ BEGIN
 							LEFT JOIN sap.WDD1 H ON H.WddCode = G.WddCode 
 							LEFT JOIN SBOCTRZ.dbo.PCH1 I ON F.DocEntry = I.BaseEntry
 							LEFT JOIN SBOCTRZ.dbo.OPCH J ON I.DocEntry = J.DocEntry
-							WHERE 
-								CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
-								--AND B.ESTATUS <> ''B''
-					'
-					IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT)
-					BEGIN
-						IF ISNULL(@NumEmp, '0') <> '0'
-						BEGIN SET @QRY += ' 
-								AND NumEmp = @NumEmp
-						' END
-						ELSE
-						BEGIN SET @QRY += ' 
-								AND NumEmp COLLATE DATABASE_DEFAULT IN (SELECT RHNum FROM #Employees)
-						' END
-					END
-					ELSE IF @Rol IN (24, 1)
-					BEGIN
-						IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
-								AND NumEmp = @NumEmp
-						' END
-					END
-					SET	@QRY += '
-							GROUP BY A.Id, A.CreateDate, NumEmp, B.Nombre, A.CardName,Importe, A.Estatus, H.UpdateDate, PermissionDate, EstatusDocumentacion, Motivo, IsActivoFijo, C.TransId, F.DocNum, E.Correo, J.DOCNUM, J.DocDate
-						) T0 
-						ORDER BY CASE WHEN Solicitud = ''Requisición'' THEN 0 ELSE 1 END, Folio DESC
-					'
+						WHERE 
+							CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
+							--AND B.ESTATUS <> ''B''
+				'
+				IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT)
+				BEGIN
+					IF ISNULL(@NumEmp, '0') <> '0'
+					BEGIN SET @QRY += ' 
+							AND NumEmp = @NumEmp
+					' END
+					ELSE
+					BEGIN SET @QRY += ' 
+							AND NumEmp COLLATE DATABASE_DEFAULT IN (SELECT RHNum FROM #Employees)
+					' END
+				END
+				ELSE IF @Rol IN (24, 1)
+				BEGIN
+					IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
+							AND NumEmp = @NumEmp
+					' END
+				END
+				SET	@QRY += '
+						GROUP BY A.Id, A.CreateDate, NumEmp, B.Nombre, A.CardName,Importe, A.Estatus, H.UpdateDate, PermissionDate, EstatusDocumentacion, Motivo, IsActivoFijo, C.TransId, F.DocNum, E.Correo, J.DOCNUM, J.DocDate
+					) T0 
+					ORDER BY CASE WHEN Solicitud = ''Requisición'' THEN 0 ELSE 1 END, Folio DESC
+				'
 
-					SET @paramDefinition = '@Desde DATE, @Hasta DATE, @NumEmp VARCHAR(10)'
-					EXEC sp_executesql @QRY, @paramDefinition, @Desde, @Hasta, @NumEmp
+				SET @paramDefinition = '@Desde DATE, @Hasta DATE, @NumEmp VARCHAR(10), @Usuario INT'
+				EXEC sp_executesql @QRY, @paramDefinition, @Desde, @Hasta, @NumEmp, @Usuario
 					SELECT @Desde, @Hasta
 				END
 				ELSE IF @OPC = 2
@@ -1242,17 +1351,17 @@ BEGIN
 						
 						IF @ObjType = 18
 						BEGIN
-							SELECT DocEntry[Document], ObjType, ''[Type], ''[Mensaje] FROM SBOCTRZ.dbo.OPCH WHERE DocEntry = @DocEntry
+							SELECT DocEntry[Document], ObjType, ''[Type], ''[Mensaje], ''[Autorizado] FROM SBOCTRZ.dbo.OPCH WHERE DocEntry = @DocEntry
 						END
 
 						IF @ObjType = 22
 						BEGIN
-							SELECT DocNum[Document], ObjType, 'OC'[Type], ''[Mensaje] FROM SBOCTRZ.dbo.OPOR WHERE DocEntry = @DocEntry 
+							SELECT DocNum[Document], ObjType, 'OC'[Type], ''[Mensaje], ''[Autorizado] FROM SBOCTRZ.dbo.OPOR WHERE DocEntry = @DocEntry 
 						END
 					END
 					ELSE
 					BEGIN
-						SELECT TransId[Document], ObjType, 'BorradorHNT'[Type], PickRmrk[Mensaje] FROM sap.ODRF WHERE DocEntry = @Folio 
+						SELECT TransId[Document], ObjType, 'BorradorHNT'[Type], PickRmrk[Mensaje], U_Autorizado [Autorizado] FROM sap.ODRF WHERE DocEntry = @Folio 
 					END
 				END
 				--INFORMACIÓN CP PARA ALMACENAMIENTO
@@ -1910,6 +2019,119 @@ BEGIN
 					GROUP BY A.Id, A.CreateDate, NumEmp, B.Nombre, A.CardName, Importe, A.Estatus, H.UpdateDate, PermissionDate, EstatusDocumentacion, Motivo, IsActivoFijo, C.TransId, F.DocNum, E.Correo, J.DOCNUM, J.DocDate
 					ORDER BY A.Id desc
 				END
+				-- DOCUMENTOS ELECTRONICOS NUEVA REQUI 2025-04-21
+				IF @OPC = 13
+				BEGIN
+					SELECT 
+						B.Id[Identificador],
+						[nIdArchivo][Id],
+						B.FolioSolicitud,
+						[Nombre], 
+						UUID[Folio Electronico], 
+						A.sFolio[Referencia],
+						U_Mensaje[Observaciones],
+						CASE ISNULL(U_AjusteManual, U_Autorizado) WHEN 'P' THEN 'PENDIENTE' 
+																	WHEN 'A' THEN 'AUTORIZADO'
+																	WHEN 'R' THEN 'RECHAZADO' END [Estatus],
+						dAlta[Fecha de Almacenamiento],
+						CAST(0 AS BIT)[Check]
+					FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] A 
+					JOIN [finance].[SolicitudCompraRelacionXML] B ON B.IdFile = A.nIdArchivo AND IsCFDI = CAST(1 AS BIT) 
+					WHERE 
+						B.DocEntrySAP = @DocEntry
+					ORDER BY dAlta DESC
+				END
+				-- DOCUMENTOS ELECTRONICOS NUEVA REQUI 2025-04-21
+				IF @OPC = 14
+				BEGIN
+					SELECT 
+						nIdArchivo [Identificador],
+						nIdArchivo [Id],
+						-1 [FolioSolicitud],
+						[Nombre], 
+						UUID[Folio Electronico], 
+						A.sFolio[Referencia],
+						''[Observaciones],
+						'Asociado Manualmente'[Estatus],
+						dAlta[Fecha de Almacenamiento],
+						CAST(0 AS BIT)[Check]
+					FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] A 
+					WHERE 
+						A.nIdArchivo = @DocEntry
+					ORDER BY dAlta DESC
+				END
+				--
+				IF @OPC = 15
+				BEGIN
+					SELECT 
+						A.Id [Folio_Requisicion]
+						 , C.DocNum
+						 , C.Project
+						 , FORMAT(C.CreateDate, 'yyyy-MM-dd') [Fecha solicitud]
+						 , SUM(C.DocTotal) [Monto]
+						 , C.Comments [Descripcion]
+					FROM 
+						finance.RequisicionCompra A
+						JOIN sap.ODRF B ON B.U_FolioSolicitud = CAST(A.Id AS VARCHAR(25)) AND ObjType = 22
+						JOIN SBOCTRZ.DBO.OPOR C ON CAST(C.DocEntry AS VARCHAR(25)) = B.TransId
+					WHERE 
+						EstatusRequisicion = 'Autorizado'
+						AND A.AcctCode = @Cuenta
+						--AND MONTH(A.CreateDate) = 4 AND YEAR(A.CreateDate) = YEAR(GETDATE())
+					GROUP BY C.CreateDate, A.Motivo, C.Project, C.Comments, A.CreateDate, C.DocNum, A.Id
+
+					SET @Presupuesto = (
+						SELECT Presupuesto 
+						FROM finance.Gastos_Presupuesto
+						WHERE 
+							AcctCode = @Cuenta
+							AND U_Month = MONTH(GETDATE())
+							AND U_Year = YEAR(GETDATE())	
+					)
+
+					SET @Consumido = (
+						SELECT SUM(Total) Consumido FROM (
+							-- Requisiciones abiertas
+							SELECT SUM(A.Importe) Total
+							FROM 
+								finance.CotizacionDetalle A
+								JOIN finance.RequisicionCompra B ON A.IdRequisicion = B.ID
+							WHERE 
+								A.Autorizado = 'Y' 
+								AND B.EstatusRequisicion = 'Pendiente' 
+								AND MONTH(B.CreateDate) = 3
+								AND YEAR(B.CreateDate) = 2025
+								--and MONTH(B.CreateDate) = MONTH(GETDATE())
+								--and YEAR(B.CreateDate) = YEAR(GETDATE())
+								AND B.AcctCode = @Cuenta
+							UNION ALL
+							-- OC Abiertas
+							SELECT SUM(ISNULL(LineTotal, 0)) Total ---considerar impuestos
+							FROM
+								SBOCTRZ.dbo.POR1 A
+								JOIN SBOCTRZ.dbo.OPOR B ON a.DocEntry = b.DocEntry
+							WHERE
+								A.AcctCode = @Cuenta
+								AND MONTH(B.DocDate) = 3
+								AND YEAR(B.DocDate) = 2025
+								and B.DocStatus = 'O'
+								--and MONTH(b.DocDate) = MONTH(GETDATE())
+								--and YEAR(b.DocDate) = YEAR(GETDATE())
+							UNION ALL
+							-- JDT1
+							SELECT SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Total
+							FROM SBOCTRZ.dbo.JDT1
+							WHERE
+								Account = @Cuenta
+								and MONTH(RefDate) = 3
+								and YEAR(RefDate) = 2025
+								--AND MONTH(B.CreateDate) = MONTH(GETDATE()) 
+								--AND YEAR(B.CreateDate) = YEAR(GETDATE())
+						) T0
+					)
+
+					SELECT @Presupuesto Presupuesto, @Consumido Consumido, @Presupuesto - @Consumido Disponible
+				END
 			END TRY
 			BEGIN CATCH
 				SET @Error = (SELECT ERROR_MESSAGE() + ' <hr/> SP: up_finance_SolicitudOC <br/> Consulta: ' + CAST(@TipoConsulta AS VARCHAR(50)) + ' <br/> Opc: ' + CAST(@OPC AS VARCHAR(50)) AS ErrorMessage);
@@ -2133,7 +2355,7 @@ BEGIN
 				--ESTATUS COTIZACIÓN PRESUPUESTOS
 				ELSE IF @OPC = 7
 				BEGIN
-					UPDATE finance.RequisicionCompra SET EstatusRequisicion = @Estatus WHERE Id = @IdRequisicion 
+					UPDATE finance.RequisicionCompra SET EstatusRequisicion = @Estatus, UserPresupuesto = @Usuario WHERE Id = @IdRequisicion 
 					SELECT CONCAT('La requisición ha sido autorizada ', @Estatus) Msj
 				END
 				--BORRADORES NUEVA REQUI 2025-04-21
@@ -2144,6 +2366,19 @@ BEGIN
 				ELSE IF @OPC = 9
 				BEGIN
 					UPDATE sap.ODRF SET PickRmrk = @Comments, U_Autorizado = 'N' WHERE DocEntry = @DocEntry
+				END
+				ELSE IF @OPC = 10
+				BEGIN
+					IF(SELECT U_Autorizado FROM sap.ODRF WHERE DocEntry = @DocEntry) = 'P'
+					BEGIN
+						UPDATE sap.ODRF SET U_Autorizado = 'A', TransId = NULL WHERE DocEntry = @DocEntry 
+
+						SELECT @Message = 'Documento enviado a SAP B1', @Type = 'success';
+					END
+					ELSE
+					BEGIN
+						SELECT @Message = 'El documento no puede ser procesado', @Type = 'error';
+					END
 				END
 			END TRY
 			BEGIN CATCH
@@ -2347,16 +2582,17 @@ BEGIN
 				BEGIN
 					IF NOT EXISTS(SELECT [UUID] FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] WHERE [UUID] = @UUID)
 					BEGIN
+						DECLARE @Contador INT = (SELECT ISNULL(MAX([nIdArchivo]), 0) + 1 FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ])
 						INSERT INTO [HNT-Files].[dbo].[File_CFDI_HNT_TRZ]
-							([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal]
+							([nIdArchivo],[DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal]
 							,[dFechaPago],[bActualizadoManual],[NombreEmisor],[NombreReceptor],[UsoCFDI],[TipoComprobante],[Subtotal],[Descuento],[RetenidoIVA],[RetenidoISR],[IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado]
 							,[Conceptos],[ArchivoPDF],[SubtotalGravado],[SubtotalExcento],[VersionCFDI],[sOCSAP],[sFacturaSAP],[sPagoSAP],[sFolio],[sRegimenFiscal])
 						VALUES
-							(-1,-1,'S',@UUID,'',@Ruta,@FileXML,@NombreArchivo,@Extension,'Factura de OC',ISNULL(@Usuario, 0),GETDATE(),1,'A',@RfcEmisor,@RfcReceptor,@MetodoPago,@FormaPago,@Total
+							(@Contador,-1,-1,'S',@UUID,'',@Ruta,@FileXML,@NombreArchivo,@Extension,'Factura de OC',ISNULL(@Usuario, 0),GETDATE(),1,'A',@RfcEmisor,@RfcReceptor,@MetodoPago,@FormaPago,@Total
 							,@Fecha,NULL,@NombreEmisor,@NombreReceptor,@UsoCFDI,@TipoComprobante,@Subtotal,@Descuento,@RetenidoIVA,@RetenidoISR,@IVA08,@IVA16,@IEPS,@ISH,@UUIDRelacionado
 							,@Conceptos,@FilePDF,@SubtotalGravado,@SubtotalExcento,@VersionCFDI,'','','',@FolioXML,@RegimenFiscal)
 
-						SET @Identity = @@IDENTITY;
+						SET @Identity = @Contador--@@IDENTITY;
 						SET @Id = (SELECT ISNULL(MAX(Id), 0) + 1 FROM [finance].[SolicitudCompraRelacionXML]);
 						INSERT INTO [finance].[SolicitudCompraRelacionXML]([Id],[FolioSolicitud],[IdFile],[IsCFDI],[U_Mensaje],[U_Autorizado],[DocEntrySAP])
 																	VALUES(@Id, NULL, @Identity, CAST(1 AS BIT), NULL, 'A', @FolioSolicitud)
@@ -2384,7 +2620,7 @@ BEGIN
 					SELECT @Message = 'Documentos(s) eliminado(s) Correctamente', @Type = 'success';
 				END
 				--INSERTA RELACIONES MANUALMENTE
-				ELSE IF @OPC = 5
+				ELSE IF @OPC = 4
 				BEGIN
 					select @Identity = nIdArchivo from [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID
 					SET @Id = (SELECT ISNULL(MAX(Id), 0) + 1 FROM [finance].[SolicitudCompraRelacionXML]);
@@ -2667,6 +2903,10 @@ BEGIN
 				IF ISNULL(@Importe, 0) <= 0 RAISERROR('El importe debe ser mayor a 0', 11, 1)
 				--IF ISNULL(@Cuenta, '') = '' RAISERROR('Debes elegir una cuenta', 11, 1)
 				SELECT 'Ok' Msj
+			END
+			ELSE IF @Opc = 3
+			BEGIN
+				IF ISNULL(@NumArchivos, 0) <= 0 RAISERROR('Debes agregar al menos una evidencia', 11, 1)
 			END
 		END
 	END
