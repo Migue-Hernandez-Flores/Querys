@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_PagosProveedores]    Script Date: 06/05/2025 03:26:31 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_PagosProveedores]    Script Date: 06/05/2025 06:43:29 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -142,8 +142,6 @@ ALTER PROCEDURE [dbo].[up_finance_PagosProveedores]
 	, @Cantidad				INT = NULL
 	, @Periodo				VARCHAR(10) = NULL
 	, @FechaNew				DATE = NULL
-	, @Solicita				INT = NULL
-	, @Pago					VARCHAR(15) = NULL
 AS
 BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 	DECLARE @_VersionActual nvarchar(10) = 'C'
@@ -7498,7 +7496,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'CTRZPROV'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7544,7 +7541,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'CTRZGTOS'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7590,7 +7586,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'DPJPROV'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7636,7 +7631,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'DPJGTOS'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7682,7 +7676,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'SERVIMPO'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7728,7 +7721,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'CPEJ'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7774,7 +7766,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'LYTPJ'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7820,7 +7811,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'DTRZ'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7866,7 +7856,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'ITRZ'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7912,7 +7901,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'AWISER'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -7958,7 +7946,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					AND EstatusPagos <> 4
 					AND EstatusSolicitud = 'A'
 					AND Empresa = 'FWISER'
-					AND PAGO = 'Y'
 				GROUP BY Currency, EstatusPagos, ImportePropuesto
 				UNION ALL
 				SELECT
@@ -8361,7 +8348,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				IF @Cronograma = 0
 				BEGIN
 					INSERT INTO finance.PagosProveedoresSol 
-					VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+					VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL)
 				END
 				-- Con cronograma
 				ELSE
@@ -8372,7 +8359,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 						IF @Contador = 1
 						BEGIN
 							INSERT INTO finance.PagosProveedoresSol 
-							VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+							VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL)
 						END
 						 
 						-- Las siguientes irán creándose dependiendo de el periodo y el contador a partir de la fecha original
@@ -8383,7 +8370,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 						--ELSE IF @Periodo = 'Y' SET @FechaNew = (select DATEADD(YEAR, @Contador, @FechaPago))
 
 						INSERT INTO finance.PagosProveedoresSol 
-						VALUES (@Empresa, @Folio, @FechaNew, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+						VALUES (@Empresa, @Folio, @FechaNew, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL)
 						SET @Contador = @Contador + 1;
 					END
 				END
@@ -8405,7 +8392,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, Correo VARCHAR(150)
 			)
 				IF ISNULL(@Comentario, '') = '' BEGIN RAISERROR('Se debe agregar un comentario obligatoriamente', 11, 1) END
-				UPDATE finance.PagosProveedoresSol SET EstatusSolicitud = 'R', ComentarioRechazo = @Comentario, Pago = 'N' WHERE Id = @Id and Empresa = @Empresa
+				UPDATE finance.PagosProveedoresSol SET EstatusSolicitud = 'R', ComentarioRechazo = @Comentario WHERE Id = @Id and Empresa = @Empresa
 
 				SET @QRY = '
 					SELECT
@@ -8561,18 +8548,16 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				-- Cuando el importe a pagar es mayor al solicitado
 				--IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe a pagar', 11, 1) END
 
-				UPDATE finance.PagosProveedoresSol SET 
-					ImportePropuesto = @ImportePropuesto
-					, ImporteAprobado = @ImporteAprobado
-					, FechaPago = @FechaPago
-					, EstatusPagos = @EstatusPagos
-					, ReferenciaPago = @ReferenciaPago 
-					, UpdateDate = GETDATE() 
-					, Concepto = @Concepto
-					, Banco = @Banco
-					, Pago = @Pago
-				WHERE Id = @Id
+				IF @EstatusPagos = 2
+				BEGIN
+					UPDATE FINANCE.PagosProveedoresSol SET FechaVencimiento = GETDATE() WHERE ID = @Id
+				END
+				ELSE IF (@EstatusPagos <> 2 AND (SELECT EstatusPagos FROM finance.PagosProveedoresSol WHERE Id = @Id) = '2')
+				BEGIN
+					UPDATE FINANCE.PagosProveedoresSol SET FechaVencimiento = NULL WHERE ID = @Id
+				END
 
+				UPDATE finance.PagosProveedoresSol SET ImportePropuesto = @ImportePropuesto, ImporteAprobado = @ImporteAprobado, FechaPago = @FechaPago, EstatusPagos = @EstatusPagos, ReferenciaPago = @ReferenciaPago , UpdateDate = GETDATE() WHERE Id = @Id
 				SELECT 'Solicitud actualizada' Msj
 			END
 		END TRY
@@ -8711,12 +8696,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			UNION ALL
 			SELECT 'Trimestral' Nombre, 'T' Codigo
 		END
-		ELSE IF @TipoLista = 'Solicita'
-		BEGIN
-			SELECT UserID Codigo, Nombre FROM HNT.Usuarios WHERE ACTIVO = 'Y' AND UserID NOT IN (1)
-
-			SELECT CAST(@Usuario AS INT) Usuario
-		END
 	END
 
 	-- SELECT SOLICITUDES DE PAGO
@@ -8738,11 +8717,11 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				  END [Proveedor]
 				, ISNULL(B.CardCode, A.CardCode) CardCode
 				, A.Concepto
-				, A.DocNum [Factura_Referencia_OC]
 				, A.Currency [Moneda]
 				, ISNULL(A.ImportePropuesto, 0.00) [Importe_solicitado]
 				, ISNULL(A.ImporteAprobado, 0.00) [Importe_a_pagar]
 				, C.Nombre [Solicita]
+				, A.DocNum [Factura_Referencia_OC]
 				, A.Cuenta
 				, CASE 
 					WHEN A.Banco = ''000'' THEN ''SIN DEFINIR'' 
@@ -8803,7 +8782,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, ISNULL(K.TipoPago, 0) TipoPago
 				, COUNT(ISNULL(L.Folio, M.IdSolicitud)) ContadorDocs
 				, ISNULL(K.EstatusSolicitud, '''') EstatusSolicitud
-				, A.Solicita
 			FROM
 		'
 		IF ISNULL(@Folio, '') <> '' SET @QRY += '
@@ -8877,26 +8855,25 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				  END [Proveedor]
 				, B.CardCode
 				, A.Concepto
-				, A.DocNum [Factura_Referencia_OC]
+				, A.ReferenciaPago [Referencia_de_Pago]
 				, A.Currency [Moneda]
 				, ISNULL(A.ImportePropuesto, 0.00) [Importe_solicitado]
 				, '''' [Aprobar]
 				, ISNULL(A.ImporteAprobado, 0.00) [Importe_a_pagar]
-				, ISNULL(A.Pago, ''N'') Pago
 				, C.Nombre [Solicita]
 				, A.Cuenta
 				, CASE 
-					WHEN A.Banco = ''000'' THEN ''000''
-					WHEN A.Banco <> ''000'' THEN D.BankCode 
+					WHEN A.Banco = ''000'' THEN ''SIN DEFINIR''
+					WHEN A.Banco <> ''000'' THEN D.BankName 
 				  END [Banco]
 				, D.BankCode
-				, A.ReferenciaPago [Referencia_de_Pago]
+				, A.DocNum [Factura_Referencia_OC]
 				, EstatusPagos [Estatus_pagos]
 				, ISNULL(A.TipoPago, ''0'')TipoPago
 			FROM 
 				finance.PagosProveedoresSol A
 				LEFT JOIN ' + @EmpresaQry + '.dbo.OCRD B ON A.CardCode = B.CardCode
-				JOIN hnt.Usuarios C ON A.Solicita = C.UserID
+				left JOIN hnt.Usuarios C ON A.UserID = C.UserID
 				LEFT JOIN ' + @EmpresaQry + '.dbo.ODSC D ON A.BANCO = D.BankCode
 			WHERE 
 				A.FechaPago BETWEEN @Desde AND @Hasta 
@@ -8906,10 +8883,11 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				AND A.EstatusPagos <> 4
 			ORDER BY FechaPago ASC
 		'
+
 		SET @Params = '@Desde Date, @Hasta DATE'
 		EXECUTE sp_executesql @Qry, @Params, @Desde, @Hasta
 
-		SELECT 'Folio, CardCode, BankCode, TipoPago, Id, Importe_solicitado, Fecha_de_solicitud, Aprobar'  HiddenColumns
+		SELECT 'Folio, CardCode, BankCode, TipoPago, Id, Fecha_de_solicitud, Aprobar, Importe_solicitado'  HiddenColumns
 	END
 
 	IF @TipoConsulta = 55
