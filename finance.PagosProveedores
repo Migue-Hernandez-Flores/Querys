@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_PagosProveedores]    Script Date: 24/01/2024 09:33:10 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_PagosProveedores]    Script Date: 06/05/2025 03:26:31 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -115,8 +115,9 @@ ALTER PROCEDURE [dbo].[up_finance_PagosProveedores]
 	, @Almacenar_Flujo		bit = null
 	, @TipoProv				varchar(5) = null
 	, @Empresa				varchar(25) = null
+	, @EmpresaQry			varchar(25) = null
 	, @FechaPago			date = null
-	, @CardCode				varchar(15) = null
+	, @CardCode				varchar(150) = null
 	, @Currency				varchar(15) = null
 	, @ImportePropuesto		decimal(18,4) = null
 	, @ImporteAprobado		decimal(18,4) = null
@@ -135,6 +136,14 @@ ALTER PROCEDURE [dbo].[up_finance_PagosProveedores]
 	, @Extension			varchar(15) = NULL
 	, @Ruta					varchar(1500) = null
 	, @Rechazar				char = null
+	, @FechaVencimiento		date = null
+	, @Cronograma			bit = null
+	, @Contador				INT = 1
+	, @Cantidad				INT = NULL
+	, @Periodo				VARCHAR(10) = NULL
+	, @FechaNew				DATE = NULL
+	, @Solicita				INT = NULL
+	, @Pago					VARCHAR(15) = NULL
 AS
 BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 	DECLARE @_VersionActual nvarchar(10) = 'C'
@@ -149,6 +158,19 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 
 	DECLARE @MONEDA_PROV VARCHAR(10) = '' 
 	Declare @TblGrpCode Table (GrpCode int)
+
+	IF		@Empresa = 'CTRZPROV' SET @EmpresaQry = 'SBOCTRZ'
+	ELSE IF @Empresa = 'CTRZGTOS' SET @EmpresaQry = 'SBOCTRZ'
+	ELSE IF @Empresa = 'DPJPROV'  SET @EmpresaQry = 'SBODPJ'
+	ELSE IF @Empresa = 'DPJGTOS'  SET @EmpresaQry = 'SBODPJ'
+	ELSE IF @Empresa = 'SERVIMPO' SET @EmpresaQry = 'SBOSERVIMPO'
+	ELSE IF @Empresa = 'CPEJ'	  SET @EmpresaQry = 'SB1CPEJ'
+	ELSE IF @Empresa = 'LYTPJ'	  SET @EmpresaQry = 'SBOLOGTRANSP'
+	ELSE IF @Empresa = 'DTRZ'	  SET @EmpresaQry = 'SBODTRZ'
+	ELSE IF @Empresa = 'ITRZ'	  SET @EmpresaQry = 'SBOITRZ'
+	ELSE IF @Empresa = 'AWISER'	  SET @EmpresaQry = 'SBOAWISER'
+	ELSE IF @Empresa = 'FWISER'	  SET @EmpresaQry = 'SBOWISER'
+	ELSE SET @EmpresaQry = @Empresa
 
 	IF @GroupCode = 1
 	begin
@@ -283,7 +305,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 			,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -391,7 +413,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 			,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -500,7 +522,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 			,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -949,7 +971,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		ISNULL(CASE WHEN A.DocCurr = 'USD' THEN AppliedFC END,0) 'USD'
 	FROM [SBOCTRZ].DBO.OVPM A WITH (NOLOCK)
 		INNER JOIN [SBOCTRZ].DBO.OCRD B WITH (NOLOCK) ON A.CardCode = B.CardCode
-		INNER JOIN [SBOCTRZ].DBO.VPM2 C WITH (NOLOCK) ON A.DocNum = C.DocNum
+		INNER JOIN [SBOCTRZ].DBO.VPM2 C WITH (NOLOCK) ON A.DocEntry = C.DocNum
 		INNER JOIN [SBOCTRZ].DBO.OPCH D WITH (NOLOCK) ON C.DocEntry = D.DocEntry
 		INNER JOIN [SBOCTRZ].DBO.OCRG E WITH (NOLOCK) ON B.GroupCode = E.GroupCode
 	WHERE A.DocDate BETWEEN @FechaDesde AND @FechaHasta
@@ -1761,7 +1783,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,A.CreateDate
 			,A.U_TC
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -1907,7 +1929,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,A.CreateDate
 			,D.U_Flujo
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -2043,7 +2065,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,NULL
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -2176,7 +2198,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,''
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -2308,7 +2330,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,''
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -2339,7 +2361,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			INNER JOIN [SBOCTRZ].[dbo].OCRD CL ON CL.CardCode = FA.CardCode
 			INNER JOIN [SBOCTRZ].[dbo].OCTG CP ON CP.GroupNum = CL.GroupNum
 			INNER JOIN [SBOCTRZ].[dbo].VPM2 DP ON DP.DocEntry = FA.DocEntry
-			INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocNum = DP.DocNum AND EP.Canceled='N'
+			INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocEntry = DP.DocNum AND EP.Canceled='N'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG GP ON GP.GroupCode = Cl.GroupCode
 			WHERE FA.DocDate BETWEEN CASE WHEN @FechaDesde < DATEADD(mm,-3,DATEADD(mm,DATEDIFF(mm,0,@FechaHasta),0)) THEN @FechaDesde Else DATEADD(mm,-3,DATEADD(mm,DATEDIFF(mm,0,@FechaHasta),0)) END  AND @FechaHasta AND DP.InvType= 18 --and cl.CardCode = '10001'
 			--GROUP BY CL.CardCode,CL.CardName, CP.PymntGroup, GP.GroupName,FA.DocDate, EP.DocDate, EP.DocTotal
@@ -2366,7 +2388,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		,0[Orden]  
 		FROM [SBOCTRZ].[dbo].OPCH FA
 		INNER JOIN [SBOCTRZ].[dbo].VPM2 DP ON DP.DocEntry = FA.DocEntry
-		INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocNum = DP.DocNum AND EP.Canceled='N'
+		INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocEntry = DP.DocNum AND EP.Canceled='N'
 		INNER JOIN [SBOCTRZ].[dbo].OCRD CL ON CL.CardCode = FA.CardCode
 		where FA.docdate BETWEEN @FechaDesde AND @FechaHasta
 
@@ -2384,7 +2406,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		,1[orden]  
 		FROM [SBOCTRZ].[dbo].OPCH FA
 		INNER JOIN [SBOCTRZ].[dbo].VPM2 DP ON DP.DocEntry = FA.DocEntry
-		INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocNum = DP.DocNum AND EP.Canceled='N'
+		INNER JOIN [SBOCTRZ].[dbo].OVPM EP ON EP.DocEntry = DP.DocNum AND EP.Canceled='N'
 		INNER JOIN [SBOCTRZ].[dbo].OCRD CL ON CL.CardCode = FA.CardCode
 		where FA.docdate BETWEEN @FechaDesde AND @FechaHasta
 		GROUP BY CL.CardCode, CL.CardName, EP.DocCurr
@@ -2403,7 +2425,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		FROM 
 		[SBOCTRZ].[dbo].OPCH FA0
 		INNER JOIN [SBOCTRZ].[dbo].VPM2 DP0 ON DP0.DocEntry = FA0.DocEntry
-		INNER JOIN [SBOCTRZ].[dbo].OVPM EP0 ON EP0.DocNum = DP0.DocNum AND EP0.Canceled='N'
+		INNER JOIN [SBOCTRZ].[dbo].OVPM EP0 ON EP0.DocEntry = DP0.DocNum AND EP0.Canceled='N'
 		where FA0.docdate BETWEEN @FechaDesde AND @FechaHasta AND EP0.DocCurr='$')[MontoTotalMXM]
 		,
 		(SELECT 
@@ -2411,7 +2433,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		FROM 
 		[SBOCTRZ].[dbo].OPCH FA0
 		INNER JOIN [SBOCTRZ].[dbo].VPM2 DP0 ON DP0.DocEntry = FA0.DocEntry
-		INNER JOIN [SBOCTRZ].[dbo].OVPM EP0 ON EP0.DocNum = DP0.DocNum AND EP0.Canceled='N'
+		INNER JOIN [SBOCTRZ].[dbo].OVPM EP0 ON EP0.DocEntry = DP0.DocNum AND EP0.Canceled='N'
 		where FA0.docdate BETWEEN @FechaDesde AND @FechaHasta AND EP0.DocCurr='USD')[MontoTotalUSD]
 	END
 
@@ -4228,18 +4250,18 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		SELECT 1[ID], 1[SUBID], 'SALDO INICIAL DE BANCOS'[Tipo], ''[Rubro], NULL[MXP-Real], NULL[USD-Real], NULL[Total MXP-Real], NULL[UNION], NULL[MXP-Propuesto], NULL[USD-Propuesto], NULL[Total MXP-Propuesto], 1[PK], NULL[UNION2], NULL[RealPagadoMXP], NULL[RealPagadoUSD], NULL[RealPagadoTotal], 'N'[VerDetalle]
 		UNION ALL
 		SELECT 2[ID], 1[SUBID], 'INGRESOS'[Tipo], 'Cobranza'[Rubro], NULL[MXP-Real], NULL[USD-Real], NULL[Total MXP-Real], NULL[UNION], NULL[MXP-Propuesto], NULL[USD-Propuesto], NULL[Total MXP-Propuesto], 2[PK], NULL[UNION2],
-		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N')[RealPagadoMXP], 
-		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N')[RealPagadoUSD], 
+		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N')[RealPagadoMXP], 
+		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N')[RealPagadoUSD], 
 		NULL[RealPagadoTotal], 'Y'[VerDetalle]
 		UNION ALL
 		SELECT 2[ID], 2[SUBID], 'INGRESOS'[Tipo], 'Cobros del Grupo'[Rubro], NULL[MXP-Real], NULL[USD-Real], NULL[Total MXP-Real], NULL[UNION], NULL[MXP-Propuesto], NULL[USD-Propuesto], NULL[Total MXP-Propuesto], 3[PK], NULL[UNION2],
-		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(116,122))[RealPagadoMXP], 
-		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(116,122))[RealPagadoUSD], 
+		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(116,122))[RealPagadoMXP], 
+		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(116,122))[RealPagadoUSD], 
 		NULL[RealPagadoTotal], 'Y'[VerDetalle]
 		UNION ALL
 		SELECT 2[ID], 3[SUBID], 'INGRESOS'[Tipo], 'Vtas. Contado'[Rubro], NULL[MXP-Real], NULL[USD-Real], NULL[Total MXP-Real], NULL[UNION], NULL[MXP-Propuesto], NULL[USD-Propuesto], NULL[Total MXP-Propuesto], 4[PK], NULL[UNION2],
-		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(2,20))[RealPagadoMXP], 
-		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocNum = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(2,20))[RealPagadoUSD],
+		(SELECT SUM(CASE WHEN OC.DocCurr = '$' THEN RC.SumApplied END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(2,20))[RealPagadoMXP], 
+		(SELECT SUM(CASE WHEN OC.DocCurr = 'USD' THEN RC.AppliedFC END) FROM [SBOCTRZ].dbo.ORCT OC LEFT JOIN [SBOCTRZ].dbo.RCT2 RC ON OC.DocEntry = RC.DocNum LEFT JOIN [SBOCTRZ].dbo.OCRD CL ON OC.CardCode = CL.CardCode WHERE OC.DocDate BETWEEN @FechaDesde AND @FechaHasta AND OC.Canceled='N' AND CL.GroupCode IN(2,20))[RealPagadoUSD],
 		NULL[RealPagadoTotal], 'Y'[VerDetalle]
 		UNION ALL
 		SELECT 2[ID], 4[SUBID], 'INGRESOS'[Tipo], 'Total'[Rubro], NULL[MXP-Real], NULL[USD-Real], NULL[Total MXP-Real], NULL[UNION], NULL[MXP-Propuesto], NULL[USD-Propuesto], NULL[Total MXP-Propuesto], 5[PK]
@@ -4991,7 +5013,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -5081,7 +5103,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -5145,7 +5167,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -5235,7 +5257,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -5327,7 +5349,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
 					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
 				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -5417,529 +5439,6 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		DROP TABLE #TEMP
 	END
 
-	IF @TipoConsulta = -36
-	BEGIN
-		SELECT
-			Tipo,
-			Proveedor, 
-			Nombre,
-			SUM([Aprobado MXP]) [Aprobado MXP],
-			SUM([Aprobado USD]) [Aprobado USD],
-			BankName [Banco],
-			Cuenta
-		INTO #TEMP1
-		FROM(
-			SELECT
-				'MXP' Tipo 
-				, Provedor 'Proveedor'
-				, Nombre
-				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
-				, NULL [Aprobado USD]
-				, BankName
-				, Cuenta
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/104,101) AND B.Currency = '$'
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/104,101) AND B.Currency = '$'
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*110,101*/104,101) AND C.Currency = '$'
-			)A
-			LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
-			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
-				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
-			UNION ALL
-			SELECT
-				'USD' Tipo 
-				, Provedor 'Proveedor'
-				, Nombre
-				, CASE WHEN Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End = 0
-					THEN ISNULL(B.U_AprobadoUSD, 0.00) * (Select Valor from hnt.Config_ParametrosGenerales x Where x.Name = 'TC')END [Aprobado MXP]
-	
-				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 1
-					THEN ISNULL(B.U_AprobadoUSD, 0.00) END [Aprobado USD]
-				, BankName
-				, Cuenta
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/105,101) AND B.Currency = 'USD'
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/105,101) AND B.Currency = 'USD'
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*111,101*/105,101) AND C.Currency = 'USD'
-				)A
-				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
-			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
-				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
-			---------------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------
-			UNION ALL
-			SELECT
-				'BANCOS' Tipo 
-				, Provedor 'Proveedor'
-				, Nombre
-				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
-				, ISNULL(B.U_AprobadoUSD, 0.00) [Aprobado USD]
-				, BankName
-				, Cuenta
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/108,102) AND B.Currency = 'USD'
-				--NC
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*111,101*/108,102) AND C.Currency = 'USD'
-			)A
-			LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
-			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
-				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
-			----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
-			UNION ALL
-			/*********************************************************************************************/ --Solicitado Esperanza
-			SELECT
-				'GOMXP' Tipo 
-				, Provedor 'Proveedor'
-				, Nombre
-				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
-				, NULL [Aprobado USD]
-				, BankName
-				, Cuenta
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/102) AND B.Currency = '$'
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/102) AND B.Currency = '$'
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*110,101*/102) AND C.Currency = '$'
-				)A
-				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
-			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
-				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
-			UNION ALL
-
-			/*********************************************************************************************/
-			SELECT
-				'IMPORTACIÓN' Tipo 
-				, Provedor 'Proveedor'
-				, Nombre
-				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 0
-					THEN ISNULL(B.U_AprobadoUSD, 0.00) * (Select Valor from hnt.Config_ParametrosGenerales x Where x.Name = 'TC')END [Aprobado MXP]
-	
-				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 1
-					THEN ISNULL(U_AprobadoUSD, 0.00) END [Aprobado USD]
-				, BankName
-				, ISNULL(Cuenta, '' ) Cuenta
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					A.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*112,113*/106,107)
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Provedor',
-					B.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where A.DocStatus = 'O' AND B.GroupCode IN (/*112,113*/106,107)
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-				FROM [SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*112,113*/106,107)
-				)A
-				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
-			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE
-					AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'
-			UNION ALL-----AGRGAR MONTOS APROBADOS DE OTROS PROVEEDORES EN PREVIO DE PAGOS 2015-1-20
-			Select 
-				'OTROS PROVEEDORES' Tipo,
-				'-' Proveedor,
-				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
-				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
-				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
-				U_Banco COLLATE DATABASE_DEFAULT Banco,
-				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
-			 From finance.PagosGastos
-			Where U_CIA = '004'
-				AND U_Aprobado <> 0
-				AND U_Estatus NOT IN ('E', 'T')
-				----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
-			UNION ALL
-			Select 
-				'GASTOS' Tipo,
-				'-' Proveedor,
-				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
-				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
-				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
-				U_Banco COLLATE DATABASE_DEFAULT Banco,
-				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
-			 From finance.PagosGastos
-			Where U_CIA = '001'
-				AND U_Aprobado <> 0
-				AND U_Estatus NOT IN ('E', 'T')
-				UNION ALL
-			Select 
-				'SC' Tipo,
-				'-' Proveedor,
-				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
-				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
-				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
-				U_Banco COLLATE DATABASE_DEFAULT Banco,
-				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
-			 From finance.PagosGastos
-			Where U_CIA = '002'
-				AND U_Aprobado <> 0
-				AND U_Estatus NOT IN ('E', 'T')
-				UNION ALL
-			Select 
-				'PEJ' Tipo,
-				'-' Proveedor,
-				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
-				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
-				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
-				U_Banco COLLATE DATABASE_DEFAULT Banco,
-				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
-			 From finance.PagosGastos
-			Where U_CIA = '003'
-				AND U_Aprobado <> 0
-				AND U_Estatus NOT IN ('E', 'T')
-				UNION ALL
-			Select 
-				'LOGISTICA' Tipo,
-				'-' Proveedor,
-				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
-				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
-				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
-				U_Banco COLLATE DATABASE_DEFAULT Banco,
-				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
-			 From finance.PagosGastos
-			Where U_CIA = '005'
-				AND U_Aprobado <> 0
-				AND U_Estatus NOT IN ('E', 'T')
-				----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
-			)DATOS
-		GROUP BY Tipo, Proveedor, Nombre, Cuenta, BankName
-		ORDER BY Tipo, Proveedor
-		
-		SELECT * FROM #TEMP1
-		UNION ALL
-		SELECT Tipo + ' TOTAL' , NULL, Tipo + ' TOTAL'  collate database_default, + SUM([Aprobado MXP]), SUM([Aprobado USD]), NULL, NULL FROM #TEMP1
-		GROUP BY Tipo
-		ORDER BY Tipo
-
-		DROP TABLE #TEMP1
-	END
-
 	IF @TipoConsulta = 37
 	BEGIN	
 		SELECT
@@ -5956,11 +5455,15 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			, GETDATE() 'FechaContabilizacion'--fechacont
 			, GETDATE() 'Fecha transferencia'--fechatrans
 			, Case When DocCur  = 'USD' Then
-					'1120-001-003'
+					--'1120-001-003'
+					'1120-005-002'
 				   When DocCur = '$' and GroupCode = 102 Then
-				    '1120-001-005'
+				    --'1120-001-005'
+					'1120-002-002'
 				   When DocCur = '$' and GroupCode <> 102 Then
-				    '1120-001-004' End 'Cuenta contable'--cuenta --cambio de cuenta --1120-001-007
+				    --'1120-001-004' 
+					'1120-002-024'
+				End 'Cuenta contable'--cuenta --cambio de cuenta --1120-001-007
 			, Case When Tipo = 'FR' Then 'it_PurchaseInvoice'
 				   When Tipo = 'NC' Then 'it_PurchaseCreditNote'
 				   When Tipo = 'SF' Then 'it_JournalEntry' End Tipo--tipo
@@ -6052,7 +5555,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				,1 DocLine
 				,C.GroupCode
 			FROM [SBOCTRZ].[dbo].OVPM A
-				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 				INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 				LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
 				INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6207,7 +5710,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,A.CreateDate
 			,A.U_TC
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6346,7 +5849,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,A.U_TC
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6524,7 +6027,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					,A.U_TC
 				FROM
 					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6672,7 +6175,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,A.CreateDate
 			,D.U_Flujo
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6808,7 +6311,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,NULL
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -6941,7 +6444,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,''
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -7073,7 +6576,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			,''
 			,A.CreateDate
 			FROM [SBOCTRZ].[dbo].OVPM A
-			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+			LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 			INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 			LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 			INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -7085,805 +6588,19 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 
 	END
 
-	--PAGOS PROVEEDORES EN VERSION WEB --
-	IF @TipoConsulta = -41
-	BEGIN
-		IF @GroupCode in (1)
-		BEGIN
-			--Facturas
-			SELECT 
-				Estatus
-				, Proveedor 'Proveedor'
-				, Nombre
-				, [Fecha de Contabilización]
-				, [Fecha de vencimiento]
-				, [Folio Factura] Factura
-				, CAST([Folio SAP] as decimal(18,4)) [Folio_SAP]
-				, DocCur 'Moneda del documento'
-				, CASE WHEN ISNULL((B.U_NC), 0) = 0
-				  THEN 1 ELSE -1 END *
-				  Total [Monto original]
-				, CASE WHEN ISNULL((B.U_NC), 0) = 0
-				  THEN 1 ELSE -1 END *
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
-						THEN CASE WHEN Indicator = 'PR' AND ISNULL((B.U_NC), 0) = 0 
-						THEN Total - 
-								(Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
-						ELSE 
-							 CASE WHEN Tipo = 'FR' AND ISNULL((B.U_NC), 0) = 0
-							 THEN Total - 
-								(Total*ISNULL(CASE WHEN PP IS NULL THEN Descuento END,0)) 
-							 ELSE Total END END
-					ELSE  Total END Total
-				, CAST(CASE WHEN Tipo = 'SF' 
-					AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
-					THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
-				, CAST(ISNULL(B.U_PropuestaUSD , 0) AS DECIMAL(18,2)) Propuesta
-				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
-				, CAST(CASE WHEN Tipo = 'SF'
-							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
-						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
-				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS decimal(18,2)) Aprobado
-				/*20*/, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
-				, ISNULL(B.U_Comentarios, '') Comentarios
-				, CAST(ISNULL(U_Flujo, 0) AS bit) 'Pagado'
-				, NULL[U_CtaCredito]
-				, ISNULL((B.U_NC), 0) 'NC'
-				, CASE WHEN ISNULL(U_FP, 'N') = 'N' THEN 'Normal' 
-					   WHEN ISNULL(U_FP, 'N') = 'P' THEN 'Propuesta'
-					   WHEN ISNULL(U_FP, 'N') = 'A' THEN 'Aprobado' 
-				  END  Situacion
-				, DocEntry
-				, ISNULL(B.U_TC, 0) 'TC'
-				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
-				, ISNULL(Cuenta, '' ) Cuenta
-				, Tipo
-				, U_Condiciones
-				, ISNULL(CASE WHEN PP IS NULL THEN Descuento END,0) Descuento
-				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
-				, CreateDate[Fecha Documento]
-				------------------------------------------------------------------------------------------------------------------------------------------
-				, CASE WHEN ISNULL(B.U_TC,0) = 0 THEN NULL
-					WHEN ISNULL(B.U_TC,0) > 0 THEN 
-					(CASE WHEN ISNULL((B.U_NC), 0) = 0
-				  THEN 1 ELSE -1 END *
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
-						THEN CASE WHEN Indicator = 'PR' AND ISNULL((B.U_NC), 0) = 0 
-						THEN Total - 
-								(Total*ISNULL((CASE WHEN PP = 'Y' THEN C.Descuento END),0)) 
-						ELSE 
-							 CASE WHEN Tipo = 'FR' AND ISNULL((B.U_NC), 0) = 0
-							 THEN Total - 
-								(Total*ISNULL((CASE WHEN PP IS NULL THEN C.Descuento END),0)) 
-							 ELSE Total END END
-					ELSE  Total END) / NULLIF(A.U_TC,0)
-				END Monto_Dolares
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Proveedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.U_Flujo
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,A.Indicator
-					,A.CreateDate
-					,A.U_TC
-				FROM
-					[SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				WHERE
-					A.Doctotal - A.paidTodate <> 0 
-					AND ISNULL(A.Indicator,'')<>'PC' 
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Proveedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,''
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP[U_FP]
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,A.Indicator
-					,A.CreateDate
-					,A.U_TC
-				FROM
-					[SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				WHERE
-					A.DocStatus = 'O'
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				UNION ALL
-				--Saldos a favor
-				SELECT DISTINCT
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,D.U_Flujo
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,''
-					,A.CreateDate
-					,A.U_TC
-				FROM 
-					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				WHERE
-					A.Canceled = 'N'
-					AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 
-					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) AND C.Currency = @MONEDA_PROV
-			)A
-			LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
-			LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
-			Where [Fecha de vencimiento] BETWEEN @Desde AND @Hasta		
-			Order by Proveedor, [Fecha de vencimiento]
-		END
-
-		IF @GroupCode in (2)
-		BEGIN
-			--Facturas
-			SELECT 
-				Estatus
-				, Proveedor 'Proveedor'
-				, Nombre
-				, [Fecha de Contabilización]
-				, [Fecha de vencimiento]
-				, [Folio Factura] Factura
-				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
-				, CASE WHEN ISNULL(b.U_TC,0) = 0 THEN DocCur ELSE 'USD' END 'Moneda del documento'
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END * Total[Monto original]
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
-						THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 
-						THEN Total - 
-								(Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
-						ELSE 
-							 CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0
-							 THEN Total - 
-								(Total * ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) 
-							 ELSE Total END END
-					ELSE  Total END Total
-				, CAST(CASE WHEN Tipo = 'SF' 
-							AND ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP, 0) <> 0 
-					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
-				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta
-				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
-				, CAST(CASE WHEN Tipo = 'SF'
-							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
-						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
-				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS decimal(18,2)) Aprobado
-				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
-				, ISNULL(B.U_Comentarios, '') Comentarios
-				, CAST(ISNULL(U_Flujo, 0) AS bit) 'Pagado'
-				, NULL[U_CtaCredito]
-				, ISNULL(B.U_NC, 0) 'NC'
-				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
-				, DocEntry
-				, ISNULL(B.U_TC, 0) 'TC'
-				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
-				, ISNULL(Cuenta, '' ) Cuenta
-				, Tipo
-				, U_Condiciones
-				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
-				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
-				, CreateDate[Fecha Documento]
-				, NULL Monto_Dolares
-			FROM
-			(
-				SELECT 
-					'FR' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Proveedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,A.Indicator
-					,A.U_TC
-					,A.CreateDate
-					,A.U_Flujo
-				FROM 
-					[SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
-				Where 
-					A.Doctotal - A.paidTodate <> 0 
-					AND ISNULL(A.Indicator,'')<>'PC' 
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo,
-					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
-					END END as 'Estatus',
-					A.CardCode 'Proveedor',
-					b.CardName 'Nombre',
-					A.DocDate 'Fecha de Contabilización',
-					A.DocDueDate 'Fecha de vencimiento',
-					A.NumAtCard 'Folio Factura',
-					A.DocNum 'Folio SAP'
-					,A.DocCur
-					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					,A.U_FP
-					,A.DocEntry
-					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,A.Indicator
-					,A.U_TC
-					,A.CreateDate
-					,''
-				FROM 
-					[SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where
-					A.DocStatus = 'O'
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				UNION ALL
-				--Saldos a favor
-				SELECT distinct
-					'SF' Tipo,
-					'Saldo a favor' as 'Estatus',
-					A.CardCode,
-					C.CardName,
-					A.DocDate,
-					A.DocDueDate,
-					'',
-					A.DocNum
-					,A.DocCurr
-					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
-					,NULL
-					,A.DocEntry
-					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					,''
-					,A.U_TC
-					,A.CreateDate
-					,D.U_Flujo
-				FROM
-					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where 
-					A.Canceled = 'N' 
-					AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 
-					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) AND C.Currency = @MONEDA_PROV
-			)A
-				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
-				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
-			Where [Fecha de vencimiento] between @Desde AND @Hasta		
-			Order by Proveedor, [Fecha de vencimiento]
-		END
-
-		IF @GroupCode in (3)
-		BEGIN
-			--Facturas
-			SELECT 
-				Estatus
-				, Proveedor 'Proveedor'
-				, Nombre
-				, [Fecha de Contabilización]
-				, [Fecha de vencimiento]
-				, [Folio Factura] Factura
-				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
-				, DocCur 'Moneda del documento'
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  Total [Monto original]
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
-							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) ELSE 
-							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
-					   ELSE  Total END Total
-				, CAST(CASE WHEN Tipo = 'SF' 
-							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
-					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
-				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta 
-				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
-				, CAST(CASE WHEN Tipo = 'SF'
-							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
-						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
-				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
-				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
-				, ISNULL(B.U_Comentarios, '') Comentarios
-				, U_CtaCredito
-				, ISNULL(B.U_NC, 0) 'NC'
-				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
-				, DocEntry
-				, ISNULL(B.U_TC, 0) 'TC'
-				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End, 0) as bit) 'Pagar USD'
-				, ISNULL(Cuenta, '' ) Cuenta
-				, Tipo
-				, U_Condiciones
-				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
-				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
-				, CreateDate[Fecha Documento]
-				, NULL Monto_Dolares
-			FROM
-			(
-				SELECT 
-					'FR' Tipo
-					, CASE 
-						WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
-					  END 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					, A.Indicator
-					, A.U_CtaCredito
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where 
-					A.Doctotal - A.paidTodate <> 0 
-					AND ISNULL(A.Indicator,'')<>'PC' 
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo
-					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-						  ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END
-					  END 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					, A.Indicator
-					, A.U_CtaCredito
-					, A.CreateDate
-				FROM 
-					[SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where 
-					A.DocStatus = 'O'
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
-				UNION ALL
-				--Saldos a favor
-				SELECT DISTINCT
-					'SF' Tipo
-					, 'Saldo a favor' as 'Estatus'
-					, A.CardCode 'Proveedor'
-					, C.CardName
-					, A.DocDate
-					, A.DocDueDate
-					, ''
-					, A.DocNum
-					, A.DocCurr
-					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END *-1 DocTotal
-					, NULL
-					, A.DocEntry
-					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					, CAST(/*C.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
-					, ''
-					, NULL
-					, A.CreateDate
-				FROM 
-					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				WHERE
-					A.Canceled = 'N'
-					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
-					AND C.GroupCode IN (SELECT * FROM @TblGrpCode)
-			)A
-			LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
-			LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
-			Where [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
-			Order by Proveedor, [Fecha de vencimiento]
-		END
-		
-		IF @GroupCode in (4)
-		BEGIN
-			--Facturas
-			SELECT 
-				Estatus
-				, Proveedor 
-				, Nombre
-				, [Fecha de Contabilización]
-				, [Fecha de vencimiento]
-				, [Folio Factura] Factura
-				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
-				, DocCur 'Moneda del documento'
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  Total [Monto original]
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END * 
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
-							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0
-							 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END ,0)) ELSE 
-							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0
-								  THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
-					   ELSE  Total END Total
-				, CAST(CASE WHEN Tipo = 'SF' 
-							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
-					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
-				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta 
-				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
-				, CAST(CASE WHEN Tipo = 'SF'
-							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
-						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
-				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
-				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
-				, ISNULL(B.U_Comentarios, '') Comentarios
-				, NULL[U_CtaCredito]
-				, ISNULL(B.U_NC, 0) 'NC'
-				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
-				, DocEntry
-				, ISNULL(B.U_TC, 0) 'TC'
-				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
-				, ISNULL(Cuenta, '' ) Cuenta
-				, Tipo
-				, U_Condiciones
-				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
-				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
-				, CreateDate[Fecha Documento]
-				, NULL Monto_Dolares
-			FROM
-			(
-				SELECT 
-					'FR' Tipo
-					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-						  ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END
-					  END as 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END AS 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					, A.Indicator
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				WHERE
-					A.Doctotal - A.paidTodate <> 0
-					AND ISNULL(A.Indicator,'')<>'PC' 
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo
-					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-						 ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'END
-					  END as 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST('' as nvarchar(MAX)) U_Condiciones
-					, A.Indicator
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				Where
-					A.DocStatus = 'O'
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
-				UNION ALL
-				--Saldos a favor
-				SELECT DISTINCT
-					'SF' Tipo
-					, 'Saldo a favor' as 'Estatus'
-					, A.CardCode 'Proveedor'
-					, C.CardName
-					, A.DocDate
-					, A.DocDueDate
-					, ''
-					, A.DocNum
-					, A.DocCurr
-					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal End *-1 DocTotal
-					, NULL
-					, A.DocEntry
-					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					, CAST('' AS NVARCHAR(MAX)) U_Condiciones
-					, ''
-					, A.CreateDate
-				FROM 
-					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				Where 
-					A.Canceled = 'N' 
-					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
-					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) 
-			)A
-				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
-				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
-			where Proveedor in ('20248', '20250', '20705','22305', '20667')
-			      AND [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
-			ORDER BY Proveedor, [Fecha de vencimiento]
-		END
-
-		IF @GroupCode in (5, 6)
-		BEGIN
-			--Facturas
-			SELECT 
-				Estatus
-				, Proveedor 'Proveedor'
-				, Nombre
-				, [Fecha de Contabilización]
-				, [Fecha de vencimiento]
-				, [Folio Factura] Factura
-				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
-				, DocCur 'Moneda del documento'
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  Total [Monto original]
-				, CASE WHEN ISNULL(B.U_NC, 0) = 0
-				  THEN 1 ELSE -1 END *
-				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
-							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) ELSE 
-							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
-					   ELSE  Total END Total
-				, CAST(CASE WHEN Tipo = 'SF' 
-							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
-					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
-				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS decimal(18,2)) Propuesta 
-				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
-				, CAST(CASE WHEN Tipo = 'SF'
-							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
-						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
-				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
-				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
-				, ISNULL(B.U_Comentarios, '') Comentarios
-				, NULL[U_CtaCredito]
-				, ISNULL(B.U_NC, 0) 'NC'
-				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
-					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
-					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
-				, DocEntry
-				, ISNULL(B.U_TC, 0) 'TC'
-				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 END,0) as bit) 'Pagar USD'
-				, ISNULL(Cuenta, '' ) Cuenta
-				, Tipo
-				, U_Condiciones
-				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
-				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
-				, CreateDate[Fecha Documento]
-				, NULL Monto_Dolares
-			FROM
-			(
-				SELECT 
-					'FR' Tipo
-					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-					     ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
-					  END 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
-					, A.Indicator
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].OPCH A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				WHERE 
-					A.Doctotal - A.paidTodate <> 0
-					AND ISNULL(A.Indicator,'')<>'PC' 
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				--NC
-				UNION ALL
-				SELECT 
-					'NC' Tipo
-					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
-						 ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
-					  END as 'Estatus'
-					, A.CardCode 'Proveedor'
-					, B.CardName 'Nombre'
-					, A.DocDate 'Fecha de Contabilización'
-					, A.DocDueDate 'Fecha de vencimiento'
-					, A.NumAtCard 'Folio Factura'
-					, A.DocNum 'Folio SAP'
-					, A.DocCur
-					, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END * -1 'Total'
-					, A.U_FP
-					, A.DocEntry
-					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
-					, CAST(/*B.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
-					, A.Indicator
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].ORPC A 
-					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
-					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-				WHERE
-					A.DocStatus = 'O'
-					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND B.Currency = @MONEDA_PROV
-				UNION ALL
-				--Saldos a favor
-				SELECT DISTINCT
-					'SF' Tipo
-					, 'Saldo a favor' 'Estatus'
-					, A.CardCode 'Proveedor'
-					, C.CardName
-					, A.DocDate
-					, A.DocDueDate
-					, ''
-					, A.DocNum
-					, A.DocCurr
-					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END *-1 DocTotal
-					, NULL
-					, A.DocEntry
-					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
-					, CAST(/*C.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
-					, ''
-					, A.CreateDate
-				FROM
-					[SBOCTRZ].[dbo].OVPM A
-					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
-					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
-					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
-					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
-					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
-				WHERE
-					A.Canceled = 'N'
-					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
-					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) 
-					AND C.Currency = @MONEDA_PROV
-			)A
-				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
-				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
-			WHERE [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
-			ORDER BY Proveedor, [Fecha de vencimiento]
-		END
-
-		SELECT 'Propuesta, Aprobado, U_CtaCredito, DocEntry, TC, Pagar_USD, Cuenta, Tipo, U_Condiciones, Descuento' HiddenColumns
-	END
-
 	--PRELIMINARES DE PAGOS EN SAP(ENCABEZADO)
 	IF @TipoConsulta = 42
 	BEGIN
 		SELECT 
-			A.DocNum[Folio Borrador],
-			A.CardCode[Codigo], 
-			A.JrnlMemo[Nombre],
-			A.TrsfrSum[Importe], 
-			A.DocDate[Fecha Contable],
-			A.TrsfrDate[Fecha Transferencia],
-			Nombre[Autor],
-			B.DocNum[Folio SAP],
-			A.U_ActMessage[Mensaje]
+			A.DocNum[Folio Borrador]
+			, A.CardCode[Codigo]
+			, A.JrnlMemo[Nombre]
+			, A.TrsfrSum[Importe]
+			, A.DocDate[Fecha Contable]
+			, A.TrsfrDate[Fecha Transferencia]
+			, Nombre[Autor]
+			, B.DocNum[Folio SAP]
+			, A.U_ActMessage[Mensaje]
 		FROM sap.OVPM A
 		LEFT JOIN SBOCTRZ.dbo.OVPM B ON A.TransId = B.DocNum
 		JOIN hnt.Usuarios C on C.UserID = A.FolioHalcon
@@ -7896,17 +6613,17 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 	IF @TipoConsulta = 43
 	BEGIN
 		SELECT 
-			A.DocNum[Folio Borrador],
-			InvoiceId[Line],
-			A.DocEntry, 
-			CASE InvType WHEN 18 THEN (SELECT DocNum FROM SBOCTRZ.dbo.OPCH X WHERE X.DocEntry = A.DocEntry)
-						 WHEN 19 THEN (SELECT DocNum FROM SBOCTRZ.dbo.ORPC X WHERE X.DocEntry = A.DocEntry)END [Documento],
-			SumApplied[Importe],
-			AppliedFC[Importe USD], 
-			CASE InvType WHEN 18 THEN 'Factura de proveedores' 
+			A.DocNum[Folio Borrador]
+			, InvoiceId[Line]
+			, A.DocEntry
+			, CASE InvType WHEN 18 THEN (SELECT DocNum FROM SBOCTRZ.dbo.OPCH X WHERE X.DocEntry = A.DocEntry)
+						 WHEN 19 THEN (SELECT DocNum FROM SBOCTRZ.dbo.ORPC X WHERE X.DocEntry = A.DocEntry)END [Documento]
+			, SumApplied[Importe]
+			, AppliedFC[Importe USD]
+			, CASE InvType WHEN 18 THEN 'Factura de proveedores' 
 						 WHEN 19 THEN 'Nota de Crédito de proveedores' END [Tipo Documento]
 		FROM sap.VPM2 A
-		JOIN sap.OVPM B ON A.DocNum = B.DocNum
+		JOIN sap.OVPM B ON A.DocNum = B.DocEntry
 		WHERE 
 			B.DocNum = @DocNum
 	END
@@ -7917,7 +6634,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		UNION ALL
 		SELECT 'USD' Nombre, '2' Codigo
 		UNION ALL
-		SELECT 'Importación', '3' Codigo
+		SELECT 'Importación' Nombre, '3' Codigo
 		UNION ALL
 		SELECT 'Banco' Nombre, '4' Codigo
 		UNION ALL
@@ -8026,7 +6743,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, A.DocCurr 
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8076,24 +6793,37 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					, ISNULL(ISNULL(CASE WHEN DOCCUR = 'USD' THEN SUM(Total) END, 0.00) * @TC, 0.00) + 0.00 Total
 					, ISNULL(SUM([Propuesta MXP]), 0.00) [Propuesta MXP]
 					, ISNULL(SUM([Aprobado MXP]), 0.00) [Aprobado MXP]
-					, 0.00 [Propuesta USD]
-					, 0.00 [Aprobado USD]
+					, ISNULL(SUM([Propuesta USD]), 0.00) [Propuesta USD]
+					, ISNULL(SUM([Aprobado USD]), 0.00) [Aprobado USD]
 				FROM (
 					SELECT 
-						CASE WHEN ISNULL(B.U_NC , 0) = 0
-						THEN 1 ELSE -1 END *
+						CASE WHEN ISNULL(B.U_NC , 0) = 0 THEN 1 ELSE -1 END 
+						*
 						CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
-						THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 
-						THEN Total - 
-						(Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
-						ELSE 
-						CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0
-						THEN Total - 
-						(Total * ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) 
-						ELSE Total END END
-						ELSE  Total END Total
-						, ISNULL(B.U_PropuestaUSD, 0) * @TC 'Propuesta MXP'
-						, ISNULL(B.U_AprobadoMXP, 0.00) 'Aprobado MXP'
+							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
+							ELSE 
+								CASE 
+									WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total * ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) 
+									ELSE Total 
+								END 
+						END
+							ELSE  Total END Total
+						, CASE 
+							WHEN ISNULL(U_USD, '') = '' THEN ISNULL(B.U_PropuestaUSD, 0.00) * @TC 
+							ELSE 0.00
+						  END 'Propuesta MXP'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = '' THEN ISNULL(B.U_AprobadoUSD, 0.00) * @TC
+							ELSE 0.00
+						  END 'Aprobado MXP'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = 'Y' THEN ISNULL(B.U_PropuestaUSD, 0.00)
+							ELSE 0.00
+						  END 'Propuesta USD'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = 'Y' THEN ISNULL(B.U_AprobadoUSD, 0.00)
+							ELSE 0.00
+						  END 'Aprobado USD'
 						, Doccur
 					FROM(
 						SELECT 
@@ -8118,7 +6848,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 						UNION ALL
 						SELECT 
 							'NC' Tipo
-							,  A.DocDueDate 'Fecha de vencimiento'
+							, A.DocDueDate 'Fecha de vencimiento'
 							, A.DocEntry
 							, A.Indicator
 							, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END * -1 'Total'
@@ -8145,7 +6875,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, A.Doccurr DocCur
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8158,7 +6888,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND U_Tipo = Tipo
 					LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
 					Where [Fecha de vencimiento] between @Desde AND @Hasta		
-					GROUP BY DocEntry, Tipo, Proveedor, Indicator, Total, Doccur, U_NC, Descuento, PP, U_PropuestaUSD, U_AprobadoMXP
+					GROUP BY DocEntry, Tipo, Proveedor, Indicator, Total, Doccur, U_NC, Descuento, PP, U_PropuestaUSD, U_AprobadoUSD, U_PropuestaMXP, U_AprobadoMXP, U_USD
 				) T2
 				GROUP BY Doccur
 				UNION ALL 
@@ -8192,10 +6922,10 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					, COALESCE(CASE WHEN DOCCUR = 'USD' THEN SUM(Total) END, 0.00) USD
 					, COALESCE(CASE WHEN DOCCUR = '$' THEN SUM(Total) END, 0.00) MXP
 					, COALESCE(COALESCE(CASE WHEN DOCCUR = 'USD' THEN SUM(Total) END, 0.00) * @TC, 0.00) + COALESCE(CASE WHEN DOCCUR = '$' THEN SUM(Total) END, 0.00) Total
-					, COALESCE(SUM([Propuesta MXP]), 0.00) [Propuesta MXP]
-					, COALESCE(SUM([Aprobado MXP]), 0.00) [Aprobado MXP]
-					, 0.00 [Propuesta USD]
-					, 0.00 [Aprobado USD]
+					, ISNULL(SUM([Propuesta MXP]), 0.00) [Propuesta MXP]
+					, ISNULL(SUM([Aprobado MXP]), 0.00) [Aprobado MXP]
+					, ISNULL(SUM([Propuesta USD]), 0.00) [Propuesta USD]
+					, ISNULL(SUM([Aprobado USD]), 0.00) [Aprobado USD]
 				FROM (
 					SELECT 
 						ISNULL(CASE WHEN B.U_NC = 0
@@ -8210,8 +6940,22 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 						(Total * ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) 
 						ELSE Total END END
 						ELSE  Total END, 0) Total
-						, ISNULL(B.U_PropuestaMXP, 0) 'Propuesta MXP'
-						, ISNULL(B.U_AprobadoMXP, 0) 'Aprobado MXP'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = '' THEN ISNULL(B.U_PropuestaUSD, 0.00) * @TC 
+							ELSE 0.00
+						  END 'Propuesta MXP'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = '' THEN ISNULL(B.U_AprobadoUSD, 0.00) * @TC
+							ELSE 0.00
+						  END 'Aprobado MXP'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = 'Y' THEN ISNULL(B.U_PropuestaUSD, 0.00)
+							ELSE 0.00
+						  END 'Propuesta USD'
+						, CASE 
+							WHEN ISNULL(U_USD, '') = 'Y' THEN ISNULL(B.U_AprobadoUSD, 0.00)
+							ELSE 0.00
+						  END 'Aprobado USD'
 						, Doccur
 					FROM (
 						SELECT 
@@ -8261,7 +7005,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, A.DocCurr
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8274,7 +7018,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND U_Tipo = Tipo
 					LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
 					--WHERE [Fecha de vencimiento] BETWEEN @Desde AND @Hasta		
-					GROUP BY DocEntry, Tipo, Proveedor, Indicator, Total, Doccur, U_NC, Descuento, PP, U_PropuestaMXP, U_AprobadoMXP
+					GROUP BY DocEntry, Tipo, Proveedor, Indicator, Total, Doccur, U_NC, Descuento, PP, U_PropuestaMXP, U_AprobadoMXP, U_PropuestaUSD, U_AprobadoUSD, U_USD
 				) T3
 				GROUP BY Doccur
 				UNION ALL 
@@ -8373,7 +7117,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, D.DocCur
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8549,7 +7293,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
 							LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
-						WHERE 
+						WHERE  
 							A.Doctotal - A.paidTodate <> 0 
 							AND ISNULL(A.Indicator,'')<>'PC' 
 							AND B.GroupCode IN (102) 
@@ -8584,7 +7328,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, '' Indicator
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8695,7 +7439,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 							, '' Indicator
 						FROM 
 							[SBOCTRZ].[dbo].OVPM A
-							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8723,6 +7467,512 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 					, 0.00 [Propuesta USD]
 					, 0.00 [Aprobado USD]
 			) T8_8
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					9 ID
+					, 'CTRZPROV' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'CTRZPROV'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					9 ID
+					, 'CTRZPROV' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T9_9
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					10 ID
+					, 'CTRZGTOS' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'CTRZGTOS'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					10 ID
+					, 'CTRZGTOS' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T10_10
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					11 ID
+					, 'DPJPROV' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'DPJPROV'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					11 ID
+					, 'DPJPROV' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T11_11
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					12 ID
+					, 'DPJGTOS' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'DPJGTOS'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					12 ID
+					, 'DPJGTOS' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T12_12
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					13 ID
+					, 'SERVIMPO' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'SERVIMPO'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					13 ID
+					, 'SERVIMPO' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T13_13
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					14 ID
+					, 'CPEJ' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'CPEJ'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					14 ID
+					, 'CPEJ' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T14_14
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					15 ID
+					, 'LYTPJ' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'LYTPJ'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					15 ID
+					, 'LYTPJ' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T15_15
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					16 ID
+					, 'DTRZ' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'DTRZ'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					16 ID
+					, 'DTRZ' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T16_16
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					17 ID
+					, 'ITRZ' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'ITRZ'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					17 ID
+					, 'ITRZ' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T17_17
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					18 ID
+					, 'A. WISER' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'AWISER'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					18 ID
+					, 'A. WISER' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T18_18
+			GROUP BY ID, APARTADO
+			UNION ALL
+			SELECT
+				ID
+				, APARTADO
+				, SUM(USD) USD
+				, SUM(MXP) MXP
+				, SUM(Total) Total
+				, SUM([Propuesta MXP]) [Propuesta MXP]
+				, SUM([Aprobado MXP]) [Aprobado MXP]
+				, SUM([Propuesta USD]) [Propuesta USD]
+				, SUM([Aprobado USD]) [Aprobado USD]
+			FROM(
+				SELECT 
+					19 ID
+					, 'F. WISER' APARTADO
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) USD
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) MXP
+					, ISNULL((CASE WHEN Currency = 'USD' THEN ImportePropuesto * @TC END), 0.00) 
+						+  
+					  ISNULL((CASE WHEN Currency = '$' THEN ImportePropuesto END), 0.00) Total
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta MXP]
+					, ISNULL(CASE WHEN Currency = '$' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado MXP]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImportePropuesto) END, 0.00) [Propuesta USD]
+					, ISNULL(CASE WHEN Currency = 'USD' THEN SUM(ImporteAprobado) END, 0.00) [Aprobado USD]
+				FROM 
+					finance.PagosProveedoresSol
+				WHERE 
+					FechaPago BETWEEN @Desde AND @Hasta 
+					AND EstatusPagos <> 4
+					AND EstatusSolicitud = 'A'
+					AND Empresa = 'FWISER'
+					AND PAGO = 'Y'
+				GROUP BY Currency, EstatusPagos, ImportePropuesto
+				UNION ALL
+				SELECT
+					19 ID
+					, 'F. WISER' APARTADO
+					, 0.00 USD
+					, 0.00 MXP
+					, 0.00 Total
+					, 0.00 [Propuesta MXP]
+					, 0.00 [Aprobado MXP]
+					, 0.00 [Propuesta USD]
+					, 0.00 [Aprobado USD]
+			)T19_19
+			GROUP BY ID, APARTADO
 		)TblPrincipal 
 
 		SELECT * FROM #TblResumen ORDER BY ID ASC
@@ -8801,13 +8051,13 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		FROM
 		(
 			SELECT 
-				'FR' Tipo,
-				b.CardName 'Nombre',
-				A.DocDueDate 'Fecha de vencimiento',
-				A.DocNum 'Folio SAP'
-				,A.DocEntry
-				,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta
-				,B.Currency
+				'FR' Tipo
+				, b.CardName 'Nombre'
+				, A.DocDueDate 'Fecha de vencimiento'
+				, A.DocNum 'Folio SAP'
+				, A.DocEntry
+				, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta
+				, B.Currency
 			FROM
 				[SBOCTRZ].[dbo].OPCH A 
 				INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
@@ -8850,7 +8100,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, C.Currency
 			FROM 
 				[SBOCTRZ].[dbo].OVPM A
-				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 				INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 				LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 				INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8923,7 +8173,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, C.Currency
 			FROM 
 				[SBOCTRZ].[dbo].OVPM A
-				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 				INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 				LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 				INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -8972,8 +8222,8 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, A.CardName 'Nombre'
 				, A.DocDueDate 'Fecha de vencimiento'
 				, A.DocNum 'Folio SAP'
-				,A.DocEntry
-				,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+				, A.DocEntry
+				, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
 				, B.Currency
 			FROM 
 				[SBOCTRZ].[dbo].ORPC A 
@@ -8995,7 +8245,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, C.Currency
 			FROM 
 				[SBOCTRZ].[dbo].OVPM A
-				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 				INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 				LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 				INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -9068,7 +8318,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			, C.Currency
 			FROM
 				[SBOCTRZ].[dbo].OVPM A
-				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocNum = B.DocNum
+				LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
 				INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
 				LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
 				INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
@@ -9095,60 +8345,188 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				-- Cuando ya existe una solictud de pago con el folio de la OC
 				IF EXISTS (SELECT Id FROM finance.PagosProveedoresSol WHERE Folio = @Folio and Folio <> '') BEGIN RAISERROR('Ya se ha solicitado un pago para está OC', 11, 1) END
 				-- Cuando el importe solicitado es menor a $0.00
-				IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
-				-- Cuando el importe aprobado es mayor al solicitado
-				IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe aprobado', 11, 1) END
+				--IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
+				-- Cuando el importe a pagar es mayor al solicitado
+				--IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe a pagar', 11, 1) END
 				-- Cuando no se ha elegido un proveedor
-				IF @CardCode = 0 BEGIN RAISERROR('Debes elegir un proveedor', 11, 1) END
+				IF @CardCode = '0' BEGIN RAISERROR('Debes elegir un proveedor', 11, 1) END
 				-- Cuando no se ha elegido un banco
 				IF ISNULL(@Banco, '') = '' BEGIN RAISERROR('Debes elegir un banco', 11, 1) END
 				-- Agregar predefinidamente el tipo de pago transferencia MXP
 				IF @TipoPago = '0' BEGIN SET @TipoPago = '1' END
+				-- Cuando la solicitud es generada por Esperanza esta será autorizada automáticamente
+				IF @UserID in (119) BEGIN SET @Estatus = 'A' END ELSE BEGIN SET @ESTATUS = 'P' END
 
-				INSERT INTO finance.PagosProveedoresSol 
-				VALUES (
-					@Empresa
-					, @Folio
-					, @FechaPago
-					, @CardCode
-					, @Concepto
-					, @FolioSAP
-					, @Currency
-					, @ImportePropuesto
-					, @ImporteAprobado
-					, @ReferenciaPago
-					, @Cuenta
-					, @Banco
-					, @EstatusPagos
-					, @UserID
-					, @TipoPago
-					, NULL
-					, GETDATE()
-					, GETDATE()
-					, 'P'
-					, 'N'
-				)
+				-- Sin cronograma
+				IF @Cronograma = 0
+				BEGIN
+					INSERT INTO finance.PagosProveedoresSol 
+					VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+				END
+				-- Con cronograma
+				ELSE
+				BEGIN
+					WHILE @Contador <= @Cantidad
+					BEGIN
+						--El primero lo ingresa con la fecha seleccionada en el formulario
+						IF @Contador = 1
+						BEGIN
+							INSERT INTO finance.PagosProveedoresSol 
+							VALUES (@Empresa, @Folio, @FechaPago, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+						END
+						 
+						-- Las siguientes irán creándose dependiendo de el periodo y el contador a partir de la fecha original
+						IF @Periodo = 'W' SET @FechaNew = (select DATEADD(WEEK, @Contador, @FechaPago))
+						ELSE IF @Periodo = 'M' SET @FechaNew = (select DATEADD(MONTH, @Contador, @FechaPago))
+						ELSE IF @Periodo = 'B' SET @FechaNew = (select DATEADD(MONTH, @Contador + 1, @FechaPago))
+						ELSE IF @Periodo = 'T' SET @FechaNew = (select DATEADD(MONTH, @Contador + 2, @FechaPago))
+						--ELSE IF @Periodo = 'Y' SET @FechaNew = (select DATEADD(YEAR, @Contador, @FechaPago))
+
+						INSERT INTO finance.PagosProveedoresSol 
+						VALUES (@Empresa, @Folio, @FechaNew, @CardCode, @Concepto, @FolioSAP, @Currency, @ImportePropuesto, @ImporteAprobado, @ReferenciaPago, @Cuenta, @Banco, @EstatusPagos, @UserID, @Solicita, @TipoPago, NULL, GETDATE(), GETDATE(), @Estatus, 'N', NULL, 'N')
+						SET @Contador = @Contador + 1;
+					END
+				END
 
 				SELECT 'Pago solicitado' Msj
 			END
 			-- RECHAZAR SOLICITUD
 			ELSE IF @Opc = 2
 			BEGIN
-				UPDATE finance.PagosProveedoresSol SET EstatusSolicitud = 'R', ComentarioRechazo = @Comentario WHERE Id = @Id and Empresa = @Empresa
+				DECLARE @Tbl TABLE (
+				Id INT 
+				, Folio INT
+				, Empresa VARCHAR(50)
+				, CardName VARCHAR(250)
+				, CreateDate DATETIME
+				, Nombre VARCHAR(250)
+				, ImportePropuesto DECIMAL(18,4)
+				, ComentarioRechazo VARCHAR(250)
+				, Correo VARCHAR(150)
+			)
+				IF ISNULL(@Comentario, '') = '' BEGIN RAISERROR('Se debe agregar un comentario obligatoriamente', 11, 1) END
+				UPDATE finance.PagosProveedoresSol SET EstatusSolicitud = 'R', ComentarioRechazo = @Comentario, Pago = 'N' WHERE Id = @Id and Empresa = @Empresa
+
+				SET @QRY = '
+					SELECT
+						A.Id
+						, A.Folio
+						, A.Empresa
+						, C.CardName
+						, A.CreateDate
+						, B.Nombre
+						, A.ImportePropuesto
+						, A.ComentarioRechazo
+						, B.Correo 
+					FROM 
+						finance.PagosProveedoresSol A
+						JOIN hnt.Usuarios B ON A.UserID = B.UserID
+						JOIN ' + @EmpresaQry + '.DBO.OCRD C ON A.CardCode = C.CardCode
+					WHERE 
+						Id = @Folio
+				'
+
+				SET @Params = '@Folio INT'
+				INSERT INTO @Tbl
+				EXECUTE sp_executesql @Qry, @Params, @Folio
+
+				DECLARE @HTML NVARCHAR(MAX) = NULL
+				, @StyleHTML VARCHAR(MAX) = NULL
+				, @CardName VARCHAR(100) = NULL
+				, @CreateDate DATE = NULL
+				, @Nombre VARCHAR(200) = NULL
+				, @ComentarioRechazo VARCHAR(250) = NULL
+				, @Correo varchar(MAX) = NULL
+
+
+				SET @StyleHTML = 'style="padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold;  border-left: 1px solid #0070A8;"'
+				SET @HTML = '<style>.datagrid table { border-collapse: collapse; text-align: left; width: 100%; } .datagrid {font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; }.datagrid table td, .datagrid table th { padding: 3px 10px; }.datagrid table thead th {background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% );filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F'');background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8; } .datagrid table thead th:first-child { border: none; }.datagrid table tbody td { color: #00496B; border-left: 1px solid #E1EEF4;font-size: 12px;font-weight: normal; }.datagrid table tbody .alt td { background: #E1EEF4; color: #00496B; }.datagrid table tbody td:first-child { border-left: none; }.datagrid table tbody tr:last-child td { border-bottom: none; }</style>'
+				SET @HTML += 
+					'<div class="datagrid" style="font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; ">'+
+					'<table style="border-collapse: collapse; text-align: left; width: 100%; padding: 3px 10px; ">'+
+						'<thead style="background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) ); background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8;">'+
+							'<tr>'+
+								'<th ' + @StyleHTML + '>FOLIO</th>'+
+								'<th ' + @StyleHTML + '>SOLICITUD DE OC</th>'+
+								'<th ' + @StyleHTML + '>EMPRESA</th>'+
+								'<th ' + @StyleHTML + '>PROVEEDOR</th>'+
+								'<th ' + @StyleHTML + '>FECHA DE SOLICITUD</th>'+
+								'<th ' + @StyleHTML + '>POR IMPORTE DE</th>'+
+								'<th ' + @StyleHTML + '>COMENTARIO DE RECHAZO</th>'+
+							'</tr>'+
+						'</thead>'+
+						'<tbody style="color: #00496B; border-left: 1px solid #E1EEF4; font-size: 12px;font-weight: normal;">'
+
+				DECLARE curItems CURSOR FOR 
+					SELECT Id, Folio, Empresa, CardName, CreateDate, Nombre, ImportePropuesto, ComentarioRechazo, Correo
+					FROM @Tbl
+
+				OPEN curItems
+
+				FETCH NEXT FROM curItems INTO @Id, @Folio, @Empresa, @CardName, @CreateDate, @Nombre, @ImportePropuesto, @ComentarioRechazo, @Correo
+
+				WHILE @@FETCH_STATUS = 0
+				BEGIN
+					SET @HTML += 
+						'<tr>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@Id,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@Folio,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@Empresa,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@CardName,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@CreateDate,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@ImportePropuesto,'') AS VARCHAR(MAX))+'</td>'+
+							'<td style="padding: 3px 10px; ">'+CAST(ISNULL(@ComentarioRechazo,'') AS VARCHAR(MAX))+'</td>'+
+						'</tr>'
+					SET @Correo = @Correo
+					FETCH NEXT FROM curItems INTO @Id, @Folio, @Empresa, @CardName, @CreateDate, @Nombre, @ImportePropuesto, @ComentarioRechazo, @Correo
+				END
+
+				CLOSE curItems
+				DEALLOCATE curItems
+
+				SET @HTML += '</tbody>
+						</table>
+					</div><br>
+					<p></p><br>'
+
+				DECLARE @Body NVARCHAR(MAX), @Mail VARCHAR(MAX)
+				SET @Correo += ';esperanza.bautista@tractozone.com.mx'
+
+				SET @Body = HNT_TRZ.dbo.fu_hnt_Str_Mail(N'Solicitud de pago', @HTML)
+
+				EXEC msdb.dbo.sp_send_dbmail   
+					@profile_name ='Correo Halconet',
+					@recipients = @Correo,
+					@subject = N'Solicitud de pago rechazada',
+					@body = @Body,
+					@body_format= 'HTML',
+					@blind_copy_recipients = 'miguel.hernandez@tractozone.com.mx'
+
+				--DROP TABLE #Tbl
+
+
 				SELECT 'Solicitud de pago cancelada' Msj
 			END
 			-- UPDATE DE SOLICITUD
 			ELSE IF @Opc = 3
 			BEGIN
 				-- Cuando el importe solicitado es menor a $0.00
-				IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
-				-- Cuando el importe aprobado es mayor al solicitado
-				IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe aprobado', 11, 1) END
+				--IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
+				-- Cuando el importe a pagar es mayor al solicitado
+				--IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe a pagar', 11, 1) END
 				-- Cuando no se ha elegido un proveedor
-				IF @CardCode = 0 BEGIN RAISERROR('Debes elegir un proveedor', 11, 1) END
+				IF @CardCode = '0' BEGIN RAISERROR('Debes elegir un proveedor', 11, 1) END
 				-- Cuando no se ha elegido un banco
 				IF ISNULL(@Banco, '') = '' BEGIN RAISERROR('Debes elegir un banco', 11, 1) END
-
+				
+				IF @EstatusPagos = 2
+				BEGIN
+					UPDATE FINANCE.PagosProveedoresSol SET FechaVencimiento = GETDATE() WHERE ID = @Id
+				END
+				ELSE IF (@EstatusPagos <> 2 AND (SELECT EstatusPagos FROM finance.PagosProveedoresSol WHERE Id = @Id) = '2')
+				BEGIN
+					UPDATE FINANCE.PagosProveedoresSol SET FechaVencimiento = NULL WHERE ID = @Id
+				END
 
 
 				UPDATE finance.PagosProveedoresSol SET 
@@ -9179,11 +8557,22 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			ELSE IF @Opc = 5
 			BEGIN
 				-- Cuando el importe solicitado es menor a $0.00
-				IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
-				-- Cuando el importe aprobado es mayor al solicitado
-				IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe aprobado', 11, 1) END
+				--IF @ImportePropuesto <= 0 BEGIN RAISERROR('El importe solicitado debe ser mayor a $0.00', 11, 1) END
+				-- Cuando el importe a pagar es mayor al solicitado
+				--IF @ImportePropuesto < @ImporteAprobado BEGIN RAISERROR('El importe solicitado no puede ser mayor al importe a pagar', 11, 1) END
 
-				UPDATE finance.PagosProveedoresSol SET ImportePropuesto = @ImportePropuesto, ImporteAprobado = @ImporteAprobado, FechaPago = @FechaPago, EstatusPagos = @EstatusPagos, UpdateDate = GETDATE() WHERE Id = @Id
+				UPDATE finance.PagosProveedoresSol SET 
+					ImportePropuesto = @ImportePropuesto
+					, ImporteAprobado = @ImporteAprobado
+					, FechaPago = @FechaPago
+					, EstatusPagos = @EstatusPagos
+					, ReferenciaPago = @ReferenciaPago 
+					, UpdateDate = GETDATE() 
+					, Concepto = @Concepto
+					, Banco = @Banco
+					, Pago = @Pago
+				WHERE Id = @Id
+
 				SELECT 'Solicitud actualizada' Msj
 			END
 		END TRY
@@ -9198,7 +8587,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 	BEGIN
 		IF @TipoLista = 'Empresa'
 		BEGIN
-			SELECT 'CTRZPROV' Codigo, 'CTRZ PROV' Nombre
+			SELECT 'CTRZPROV' Codigo, 'CTRZPROV' Nombre
 			UNION ALL
 			SELECT 'CTRZGTOS' Codigo, 'CTRZGTOS' Nombre
 			UNION ALL
@@ -9206,7 +8595,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			UNION ALL
 			SELECT 'DPJGTOS' Codigo, 'DPJGTOS' Nombre
 			UNION ALL
-			SELECT 'SIPJ' Codigo, 'SIPJ' Nombre
+			SELECT 'SERVIMPO' Codigo, 'SIPJ' Nombre
 			UNION ALL
 			SELECT 'CPEJ' Codigo, 'CPEJ' Nombre
 			UNION ALL
@@ -9216,22 +8605,37 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			UNION ALL
 			SELECT 'ITRZ' Codigo, 'ITRZ' Nombre
 			UNION ALL
-			SELECT 'SERVIMPO' Codigo, 'SERVIMPO' Nombre
+			SELECT 'AWISER' Codigo, 'A. WISER' Nombre
+			UNION ALL
+			SELECT 'FWISER' Codigo, 'F. WISER' Nombre
 		END
 		ELSE IF @TipoLista = 'Proveedor'
 		BEGIN
-			SELECT '0' Codigo, '- Elige un proveedor-' Nombre
-			UNION ALL
-			SELECT 
-				CardCode Codigo
-				, Concat(CardCode , ' | ', CardName) Nombre
-			FROM
-				SBOCTRZ.dbo.OCRD
-				LEFT JOIN SBOCTRZ.dbo.OSTA ON OCRD.VatGroup = OSTA.Code
-			WHERE 
-				CardType = 'S' 
-				AND frozenFor = 'N'
-				AND GroupCode = '102'
+			SET @QRY = '
+				SELECT ''0'' Codigo, ''- Elige un proveedor-'' Nombre
+				UNION ALL
+				select ''OTRO'' Codigo, ''Otro Proveedor'' Nombre
+				UNION ALL
+				--SELECT ''SD'' Codigo, ''Sin definir'' Nombre  
+				--UNION ALL
+				--SELECT ''DPJ'' Codigo, ''DPJ'' Nombre
+				--UNION ALL
+				--SELECT ''PEJ'' Codigo, ''PEJ'' Nombre
+				--UNION ALL
+				SELECT 
+					CardCode Codigo
+					, Concat(CardCode , '' | '', CardName) Nombre
+				FROM
+					' + @EmpresaQry + '.dbo.OCRD
+					LEFT JOIN ' + @EmpresaQry + '.dbo.OSTA ON OCRD.VatGroup = OSTA.Code
+				WHERE 
+					CardType = ''S''
+					AND frozenFor = ''N''
+					--AND GroupCode = ''102''
+					--and CardCode = ''10378''
+		    '
+
+			EXECUTE sp_executesql @Qry
 		END
 		ELSE IF @TipoLista = 'Moneda'
 		BEGIN
@@ -9241,25 +8645,32 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		END
 		ELSE IF @TipoLista = 'EstatusPagos' 
 		BEGIN
-			SELECT '0' Codigo, '-Estatus de pago-' Nombre
-			UNION ALL
+			--SELECT '0' Codigo, '-Estatus de pago-' Nombre
+			--UNION ALL
 			SELECT '1' Codigo, '1 | Pagar' Nombre
 			UNION ALL
 			SELECT '2' Codigo, '2 | Pagado' Nombre
 			UNION ALL
 			SELECT '3' Codigo, '3 | Programado' Nombre
+			UNION ALL
+			SELECT '4' Codigo, '4 | Eliminado'
 		END
 		ELSE IF @TipoLista = 'Banco'
 		BEGIN
-			SELECT '' Codigo, '- Selecciona un banco -' Nombre
-			UNION ALL
-			SELECT BankCode Codigo, BankName Nombre
-			FROM SBOCTRZ.dbo.ODSC
+			SET @QRY = '
+				SELECT '''' Codigo, ''- Selecciona un banco -'' Nombre
+				UNION ALL
+				SELECT ''000'' Codigo, ''SIN DEFINIR''
+				UNION ALL
+				SELECT BankCode Codigo, BankName Nombre
+				FROM ' + @EmpresaQry + '.dbo.ODSC
+			'
+			EXECUTE sp_executesql @Qry
 		END
 		ElSE IF @TipoLista = 'TipoPago'
 		BEGIN
-			SELECT '0' Codigo, '- Selecciona un tipo de pago -' Nombre
-			UNION ALL
+			--SELECT '0' Codigo, '- Selecciona un tipo de pago -' Nombre
+			--UNION ALL
 			SELECT '1' Codigo, 'Transferencia MXP' Nombre
 			UNION ALL
 			SELECT '2' Codigo, 'Transferencia USD' Nombre
@@ -9268,13 +8679,17 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		END
 		ELSE IF @TipoLista = 'Cuentas'
 		BEGIN
-			SELECT
-				A.BankCode
-				, B.BankName
-				, Account 
-			FROM SBOCTRZ.DBO.OCRB A
-			LEFT JOIN SBOCTRZ.dbo.ODSC B ON A.BankCode = B.BankCode
-			WHERE CardCode = @CardCode
+			SET @QRY = '
+				SELECT
+					A.BankCode
+					, B.BankName
+					, Account 
+				FROM ' + @EmpresaQry + '.DBO.OCRB A
+				LEFT JOIN ' + @EmpresaQry + '.dbo.ODSC B ON A.BankCode = B.BankCode
+				WHERE CardCode = ''' + @CardCode + '''
+			'
+
+			EXECUTE sp_executesql @Qry
 		END
 		ELSE IF @TipoLista = 'EstatusSolicitudes'
 		BEGIN
@@ -9285,6 +8700,22 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 			SELECT 'P' Codigo, 'Pendientes' Nombre
 			UNION ALL
 			SELECT 'R' Codigo, 'Rechazados' Nombre
+		END
+		ELSE IF @TipoLista = 'Periodos'
+		BEGIN
+			SELECT 'Semanal' Nombre, 'W' Codigo
+			UNION ALL
+			SELECT 'Mensual' Nombre, 'M' Codigo
+			UNION ALL
+			SELECT 'Bimestral' Nombre, 'B' Codigo
+			UNION ALL
+			SELECT 'Trimestral' Nombre, 'T' Codigo
+		END
+		ELSE IF @TipoLista = 'Solicita'
+		BEGIN
+			SELECT UserID Codigo, Nombre FROM HNT.Usuarios WHERE ACTIVO = 'Y' AND UserID NOT IN (1)
+
+			SELECT CAST(@Usuario AS INT) Usuario
 		END
 	END
 
@@ -9298,8 +8729,14 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, A.Empresa
 				, FORMAT(A.CreateDate, ''yyyy-MM-dd'') [Fecha_de_solicitud]
 				, FORMAT(FechaPago, ''yyyy-MM-dd'') [Fecha_de_pago]
-				, B.CardName [Proveedor]
-				, B.CardCode
+				, CASE 
+					WHEN B.CardName IS NOT NULL THEN B.CardName
+					WHEN A.CardCode = ''DPJ'' THEN ''DPJ''
+					WHEN A.CardCode = ''PEJ'' THEN ''PEJ''
+					--WHEN A.CardCode = ''SD'' THEN ''Sin Definir''
+					WHEN B.CardName IS NULL THEN A.CardCode
+				  END [Proveedor]
+				, ISNULL(B.CardCode, A.CardCode) CardCode
 				, A.Concepto
 				, A.DocNum [Factura_Referencia_OC]
 				, A.Currency [Moneda]
@@ -9307,7 +8744,10 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, ISNULL(A.ImporteAprobado, 0.00) [Importe_a_pagar]
 				, C.Nombre [Solicita]
 				, A.Cuenta
-				, D.BankName [Banco]
+				, CASE 
+					WHEN A.Banco = ''000'' THEN ''SIN DEFINIR'' 
+					ELSE D.BankName 
+				  END [Banco]
 				, D.BankCode
 				, EstatusPagos
 				, CASE 
@@ -9326,12 +8766,12 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, '''' [Editar]
 			FROM 
 		        finance.PagosProveedoresSol A
-			    JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode
+			    LEFT JOIN ' + @EmpresaQry + '.dbo.OCRD B ON A.CardCode = B.CardCode
 			    JOIN hnt.Usuarios C ON A.UserID = C.UserID
-			    JOIN SBOCTRZ.dbo.ODSC D ON A.BANCO = D.BankCode
+			    LEFT JOIN ' + @EmpresaQry + '.dbo.ODSC D ON A.BANCO = D.BankCode
 			WHERE 
 			    A.FechaPago BETWEEN @Desde AND @Hasta 
-				AND Empresa = @Empresa
+				AND Empresa = ''' + @Empresa + '''
 				AND EstatusSolicitud in (' + @Estatus + ')
 			ORDER BY A.Id DESC
 		'
@@ -9357,12 +8797,13 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 				, ISNULL(J.BankCode, K.Banco) Banco
 				, ISNULL(J.Account, K.Cuenta) Cuenta
 				, ISNULL(A.Importe, ImportePropuesto) ImportePropuesto
-				, ISNULL(K.ImporteAprobado, 0.00) ImporteAprobado
+				, ISNULL(K.ImporteAprobado, 0.00) ImportePagado
 				, ISNULL(K.ReferenciaPago, '''') ReferenciaPago
 				, ISNULL(K.EstatusPagos, 0) Estatus_Pagos
 				, ISNULL(K.TipoPago, 0) TipoPago
 				, COUNT(ISNULL(L.Folio, M.IdSolicitud)) ContadorDocs
 				, ISNULL(K.EstatusSolicitud, '''') EstatusSolicitud
+				, A.Solicita
 			FROM
 		'
 		IF ISNULL(@Folio, '') <> '' SET @QRY += '
@@ -9375,9 +8816,9 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		'
 		SET @Qry += '
 				LEFT JOIN sap.ODRF C ON C.U_FolioSolicitud = A.Id AND Indicator = ''HW''
-				LEFT JOIN SBOCTRZ.dbo.OPOR F ON C.TransId = F.DocEntry
-				LEFT JOIN SBOCTRZ.dbo.OCRD I ON A.CardCode = I.CardCode
-				LEFT JOIN SBOCTRZ.dbo.OCRB J ON J.CardCode = I.CardCode
+				LEFT JOIN ' + @EmpresaQry + '.dbo.OPOR F ON C.TransId = F.DocEntry
+				LEFT JOIN ' + @EmpresaQry + '.dbo.OCRD I ON A.CardCode = I.CardCode
+				LEFT JOIN ' + @EmpresaQry + '.dbo.OCRB J ON J.CardCode = I.CardCode
 				LEFT JOIN [HNT-Files].dbo.Files_SolicitudCompraEvidencias L ON A.Id = L.Folio
 				LEFT JOIN finance.SolPagosProv_Files M ON M.IdSolicitud = K.Id
 			WHERE 
@@ -9411,7 +8852,7 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 		SELECT 'Id, Folio, TipoDoc, Ruta' HiddenColumns
 	END
 
-	-- INSERT DE RELACION DE DOCUMENTOS
+	-- INSERT DE RELACION DE DOCUMENTOS 
 	IF @TipoConsulta = 53
 	BEGIN
 		INSERT INTO finance.SolPagosProv_Files VALUES (@Folio, @NombreArchivo, @Extension, @Ruta, @UserID, GETDATE())
@@ -9420,36 +8861,1449 @@ BEGIN --	@FormaPago		VARCHAR(50)=NULL,
 	-- SELECT SOLICITUDES DE PAGO Autorizadas
 	IF @TipoConsulta = 54
 	BEGIN
-		SELECT
-			A.Id
-			, A.Folio
-			, A.Empresa
-			, FORMAT(A.CreateDate, 'yyyy-MM-dd') [Fecha_de_solicitud]
-			, FORMAT(FechaPago, 'yyyy-MM-dd') [Fecha_de_pago]
-			, B.CardName [Proveedor]
-			, B.CardCode
-			, A.Concepto
-			, A.DocNum [Factura_Referencia_OC]
-			, A.Currency [Moneda]
-			, ISNULL(A.ImportePropuesto, 0.00) [Importe_solicitado]
-			, ISNULL(A.ImporteAprobado, 0.00) [Importe_a_pagar]
-			, C.Nombre [Solicita]
-			, A.Cuenta
-			, D.BankName [Banco]
-			, D.BankCode
-			, EstatusPagos
-			, ISNULL(A.TipoPago, '0')TipoPago
-		FROM 
-			finance.PagosProveedoresSol A
-			JOIN SBOCTRZ.dbo.OCRD B ON A.CardCode = B.CardCode
-			JOIN hnt.Usuarios C ON A.UserID = C.UserID
-			JOIN SBOCTRZ.dbo.ODSC D ON A.BANCO = D.BankCode
-		WHERE 
-			  A.FechaPago BETWEEN @Desde AND @Hasta 
-			  AND Empresa = @Empresa
-			  AND A.EstatusSolicitud = 'A'
-		ORDER BY A.FechaPago DESC
+		SET @QRY = '
+			SELECT
+				A.Id
+				, A.Folio
+				, A.Empresa
+				, FORMAT(A.CreateDate, ''yyyy-MM-dd'') [Fecha_de_solicitud]
+				, FORMAT(FechaPago, ''yyyy-MM-dd'') [Fecha_de_pago]
+				, CASE 
+					WHEN B.CardName IS NOT NULL THEN B.CardName
+					WHEN A.CardCode = ''DPJ'' THEN ''DPJ''
+					WHEN A.CardCode = ''PEJ'' THEN ''PEJ''
+					--WHEN A.CardCode = ''SD'' THEN ''Sin Definir''
+					WHEN B.CardName IS NULL THEN A.CardCode
+				  END [Proveedor]
+				, B.CardCode
+				, A.Concepto
+				, A.DocNum [Factura_Referencia_OC]
+				, A.Currency [Moneda]
+				, ISNULL(A.ImportePropuesto, 0.00) [Importe_solicitado]
+				, '''' [Aprobar]
+				, ISNULL(A.ImporteAprobado, 0.00) [Importe_a_pagar]
+				, ISNULL(A.Pago, ''N'') Pago
+				, C.Nombre [Solicita]
+				, A.Cuenta
+				, CASE 
+					WHEN A.Banco = ''000'' THEN ''000''
+					WHEN A.Banco <> ''000'' THEN D.BankCode 
+				  END [Banco]
+				, D.BankCode
+				, A.ReferenciaPago [Referencia_de_Pago]
+				, EstatusPagos [Estatus_pagos]
+				, ISNULL(A.TipoPago, ''0'')TipoPago
+			FROM 
+				finance.PagosProveedoresSol A
+				LEFT JOIN ' + @EmpresaQry + '.dbo.OCRD B ON A.CardCode = B.CardCode
+				JOIN hnt.Usuarios C ON A.Solicita = C.UserID
+				LEFT JOIN ' + @EmpresaQry + '.dbo.ODSC D ON A.BANCO = D.BankCode
+			WHERE 
+				A.FechaPago BETWEEN @Desde AND @Hasta 
+				AND Empresa = ''' + @Empresa + '''
+				AND A.EstatusSolicitud = ''A''
+				AND NOT (A.EstatusPagos = 2 AND DATEDIFF(dd, A.FechaVencimiento, GETDATE()) > 5) 
+				AND A.EstatusPagos <> 4
+			ORDER BY FechaPago ASC
+		'
+		SET @Params = '@Desde Date, @Hasta DATE'
+		EXECUTE sp_executesql @Qry, @Params, @Desde, @Hasta
 
-		SELECT 'Folio, CardCode, BankCode, TipoPago, Id'  HiddenColumns
+		SELECT 'Folio, CardCode, BankCode, TipoPago, Id, Importe_solicitado, Fecha_de_solicitud, Aprobar'  HiddenColumns
 	END
+
+	IF @TipoConsulta = 55
+	BEGIN
+		SELECT
+			Tipo
+			, Proveedor
+			, Nombre
+			, SUM([Aprobado MXP]) [Aprobado MXP]
+			, SUM([Aprobado USD]) [Aprobado USD]
+			, BankName [Banco]
+			, Cuenta
+		INTO #TEMP1
+		FROM(
+			SELECT
+				'MXP' Tipo 
+				, Provedor 'Proveedor'
+				, Nombre
+				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
+				, NULL [Aprobado USD]
+				, BankName
+				, Cuenta
+			FROM
+			(
+				SELECT 
+					'FR' Tipo
+					, CASE 
+						WHEN DocDueDate >= GETDATE() THEN 'Por Vencer'
+						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					  END END as 'Estatus'
+					, A.CardCode 'Provedor'
+					, b.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/104,101) AND B.Currency = '$'
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo
+					, CASE 
+						WHEN DocDueDate >= GETDATE() THEN 'Por Vencer'
+						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
+					  END AS 'Estatus'
+					, A.CardCode 'Provedor'
+					, b.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END * -1 AS 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/104,101) AND B.Currency = '$'
+				UNION ALL
+				--Saldos a favor
+				SELECT DISTINCT
+					'SF' Tipo
+					, 'Saldo a favor' AS 'Estatus'
+					, A.CardCode
+					, C.CardName
+					, A.DocDate
+					, A.DocDueDate
+					, ''
+					, A.DocNum
+					, A.DocCurr
+					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END *-1 AS DocTotal
+					, NULL
+					, A.DocEntry
+					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					, CAST(/*C.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*110,101*/104,101) AND C.Currency = '$'
+			)A
+			LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
+			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
+				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
+			UNION ALL
+			SELECT
+				'USD' Tipo 
+				, Provedor 'Proveedor'
+				, Nombre
+				, CASE WHEN Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End = 0
+					THEN ISNULL(B.U_AprobadoUSD, 0.00) * (Select Valor from hnt.Config_ParametrosGenerales x Where x.Name = 'TC')END [Aprobado MXP]
+	
+				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 1
+					THEN ISNULL(B.U_AprobadoUSD, 0.00) END [Aprobado USD]
+				, BankName
+				, Cuenta
+			FROM
+			(
+				SELECT 
+					'FR' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					b.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/105,101) AND B.Currency = 'USD'
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					b.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/105,101) AND B.Currency = 'USD'
+				UNION ALL
+				--Saldos a favor
+				SELECT distinct
+					'SF' Tipo,
+					'Saldo a favor' as 'Estatus',
+					A.CardCode,
+					C.CardName,
+					A.DocDate,
+					A.DocDueDate,
+					'',
+					A.DocNum
+					,A.DocCurr
+					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+					,NULL
+					,A.DocEntry
+					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*111,101*/105,101) AND C.Currency = 'USD'
+				)A
+				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
+			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
+				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
+			---------------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------
+			UNION ALL
+			SELECT
+				'BANCOS' Tipo 
+				, Provedor 'Proveedor'
+				, Nombre
+				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
+				, ISNULL(B.U_AprobadoUSD, 0.00) [Aprobado USD]
+				, BankName
+				, Cuenta
+			FROM
+			(
+				SELECT 
+					'FR' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					b.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*111,101*/108,102) AND B.Currency = 'USD'
+				--NC
+				UNION ALL
+				--Saldos a favor
+				SELECT distinct
+					'SF' Tipo,
+					'Saldo a favor' as 'Estatus',
+					A.CardCode,
+					C.CardName,
+					A.DocDate,
+					A.DocDueDate,
+					'',
+					A.DocNum
+					,A.DocCurr
+					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+					,NULL
+					,A.DocEntry
+					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*111,101*/108,102) AND C.Currency = 'USD'
+			)A
+			LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
+			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
+				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
+			----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
+			UNION ALL
+			/*********************************************************************************************/ --Solicitado Esperanza
+			SELECT
+				'GOMXP' Tipo 
+				, Provedor 'Proveedor'
+				, Nombre
+				, ISNULL(B.U_AprobadoMXP, 0.00) [Aprobado MXP]
+				, NULL [Aprobado USD]
+				, BankName
+				, Cuenta
+			FROM
+			(
+				SELECT 
+					'FR' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					b.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode			
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/102) AND B.Currency = '$'
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					b.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*110,101*/102) AND B.Currency = '$'
+				UNION ALL
+				--Saldos a favor
+				SELECT distinct
+					'SF' Tipo,
+					'Saldo a favor' as 'Estatus',
+					A.CardCode,
+					C.CardName,
+					A.DocDate,
+					A.DocDueDate,
+					'',
+					A.DocNum
+					,A.DocCurr
+					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+					,NULL
+					,A.DocEntry
+					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*110,101*/102) AND C.Currency = '$'
+				)A
+				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
+			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE	
+				AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'	
+			UNION ALL
+
+			/*********************************************************************************************/
+			SELECT
+				'IMPORTACIÓN' Tipo 
+				, Provedor 'Proveedor'
+				, Nombre
+				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 0
+					THEN ISNULL(B.U_AprobadoUSD, 0.00) * (Select Valor from hnt.Config_ParametrosGenerales x Where x.Name = 'TC')END [Aprobado MXP]
+	
+				, CASE WHEN Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0.00) as bit) = 1
+					THEN ISNULL(U_AprobadoUSD, 0.00) END [Aprobado USD]
+				, BankName
+				, ISNULL(Cuenta, '' ) Cuenta
+			FROM
+			(
+				SELECT 
+					'FR' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					A.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*112,113*/106,107)
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo,
+					CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					END END as 'Estatus',
+					A.CardCode 'Provedor',
+					B.CardName 'Nombre',
+					A.DocDate 'Fecha de Contabilización',
+					A.DocDueDate 'Fecha de vencimiento',
+					A.NumAtCard 'Folio Factura',
+					A.DocNum 'Folio SAP'
+					,A.DocCur
+					,Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					,A.U_FP
+					,A.DocEntry
+					,ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					,CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where A.DocStatus = 'O' AND B.GroupCode IN (/*112,113*/106,107)
+				UNION ALL
+				--Saldos a favor
+				SELECT distinct
+					'SF' Tipo,
+					'Saldo a favor' as 'Estatus',
+					A.CardCode,
+					C.CardName,
+					A.DocDate,
+					A.DocDueDate,
+					'',
+					A.DocNum
+					,A.DocCurr
+					,Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+					,NULL
+					,A.DocEntry
+					,ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					,CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+				FROM [SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where A.Canceled = 'N' AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 AND C.GroupCode IN (/*112,113*/106,107)
+				)A
+				LEFT JOIN [finance].PagosProv B ON A.Tipo = B.U_Tipo AND A.DocEntry = B.U_FolioSAP
+			Where [Fecha de vencimiento] between @Desde AND @Hasta --CAMBIO DE FECHA POR VARIABLE
+					AND Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+						When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+						When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  = 'Aprobado'
+			UNION ALL-----AGRGAR MONTOS APROBADOS DE OTROS PROVEEDORES EN PREVIO DE PAGOS 2015-1-20
+			Select 
+				'OTROS PROVEEDORES' Tipo,
+				'-' Proveedor,
+				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
+				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
+				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
+				U_Banco COLLATE DATABASE_DEFAULT Banco,
+				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
+			 From finance.PagosGastos
+			Where U_CIA = '004'
+				AND U_Aprobado <> 0
+				AND U_Estatus NOT IN ('E', 'T')
+				----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
+			UNION ALL
+			Select 
+				'GASTOS' Tipo,
+				'-' Proveedor,
+				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
+				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
+				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
+				U_Banco COLLATE DATABASE_DEFAULT Banco,
+				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
+			 From finance.PagosGastos
+			Where U_CIA = '001'
+				AND U_Aprobado <> 0
+				AND U_Estatus NOT IN ('E', 'T')
+				UNION ALL
+			Select 
+				'SC' Tipo,
+				'-' Proveedor,
+				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
+				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
+				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
+				U_Banco COLLATE DATABASE_DEFAULT Banco,
+				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
+			 From finance.PagosGastos
+			Where U_CIA = '002'
+				AND U_Aprobado <> 0
+				AND U_Estatus NOT IN ('E', 'T')
+				UNION ALL
+			Select 
+				'PEJ' Tipo,
+				'-' Proveedor,
+				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
+				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
+				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
+				U_Banco COLLATE DATABASE_DEFAULT Banco,
+				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
+			 From finance.PagosGastos
+			Where U_CIA = '003'
+				AND U_Aprobado <> 0
+				AND U_Estatus NOT IN ('E', 'T')
+				UNION ALL
+			Select 
+				'LOGISTICA' Tipo,
+				'-' Proveedor,
+				U_Proveedor COLLATE DATABASE_DEFAULT Nombre,
+				CASE WHEN U_TipoPago in ('Transferencia MXP', 'Cheques') THEN U_Aprobado END [Aprobado MXP],
+				CASE WHEN U_TipoPago in ('Transferencia USD') THEN U_Aprobado END [Aprobado USD],
+				U_Banco COLLATE DATABASE_DEFAULT Banco,
+				U_Cuenta COLLATE DATABASE_DEFAULT Cuenta
+			 From finance.PagosGastos
+			Where U_CIA = '005'
+				AND U_Aprobado <> 0
+				AND U_Estatus NOT IN ('E', 'T')
+				----------------------%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%--------------------------------------
+			)DATOS
+		GROUP BY Tipo, Proveedor, Nombre, Cuenta, BankName
+		ORDER BY Tipo, Proveedor
+		
+		SELECT * FROM #TEMP1
+		UNION ALL
+		SELECT Tipo + ' TOTAL' , NULL, Tipo + ' TOTAL'  collate database_default, + SUM([Aprobado MXP]), SUM([Aprobado USD]), NULL, NULL FROM #TEMP1
+		GROUP BY Tipo
+		ORDER BY Tipo
+
+		DROP TABLE #TEMP1
+	END
+
+	--PAGOS PROVEEDORES EN VERSION WEB --
+	IF @TipoConsulta = 56
+	BEGIN
+		IF @GroupCode in (1)
+		BEGIN
+					--Facturas
+					SELECT 
+						Estatus
+						, Proveedor 'Proveedor'
+						, Nombre
+						, [Fecha de Contabilización]
+						, [Fecha de vencimiento]
+						, [Folio Factura] Factura
+						, CAST([Folio SAP] as decimal(18,4)) [Folio_SAP]
+						, DocCur 'Moneda del documento'
+						, CASE WHEN ISNULL((B.U_NC), 0) = 0
+						  THEN 1 ELSE -1 END *
+						  Total [Monto original]
+						, CASE WHEN ISNULL((B.U_NC), 0) = 0
+						  THEN 1 ELSE -1 END *
+						  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
+								THEN CASE WHEN Indicator = 'PR' AND ISNULL((B.U_NC), 0) = 0 
+								THEN Total - 
+										(Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
+								ELSE 
+									 CASE WHEN Tipo = 'FR' AND ISNULL((B.U_NC), 0) = 0
+									 THEN Total - 
+										(Total*ISNULL(CASE WHEN PP IS NULL THEN Descuento END,0)) 
+									 ELSE Total END END
+							ELSE  Total END Total
+						, CAST(CASE WHEN Tipo = 'SF' 
+							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
+							THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
+						, CAST(ISNULL(B.U_PropuestaUSD , 0) AS DECIMAL(18,2)) Propuesta
+						, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
+						, CAST(CASE WHEN Tipo = 'SF'
+									AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
+								THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
+						, CAST(ISNULL(B.U_AprobadoUSD, 0) AS decimal(18,2)) Aprobado
+						, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
+						, ISNULL(IndicadorIVA, '-') [Indicador IVA]
+						, ISNULL(FormaPago, '-') [Forma de Pago]
+						, ISNULL(MetodoPago, '-') [Metodo de Pago]
+						, ISNULL(B.U_Comentarios, '') Comentarios
+						, CAST(ISNULL(U_Flujo, 0) AS bit) 'Pagado'
+						, NULL[U_CtaCredito]
+						, ISNULL((B.U_NC), 0) 'NC'
+						, CASE WHEN ISNULL(U_FP, 'N') = 'N' THEN 'Normal' 
+							   WHEN ISNULL(U_FP, 'N') = 'P' THEN 'Propuesta'
+							   WHEN ISNULL(U_FP, 'N') = 'A' THEN 'Aprobado' 
+						  END  Situacion
+						, DocEntry
+						, ISNULL(B.U_TC, 0) 'TC'
+						, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
+						, ISNULL(Cuenta, '' ) Cuenta
+						, Tipo
+						, U_Condiciones
+						, ISNULL(CASE WHEN PP IS NULL THEN Descuento END,0) Descuento
+						, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
+						, CreateDate[Fecha Documento]
+						------------------------------------------------------------------------------------------------------------------------------------------
+						, CASE WHEN ISNULL(A.U_TC,0) = 0 THEN NULL
+							WHEN ISNULL(A.U_TC,0) > 0 THEN 
+							(CASE WHEN ISNULL((SELECT U_NC FROM [finance].[PagosProv] WHERE U_FolioSAP = DocEntry AND U_Tipo = Tipo), 0) = 0
+						  THEN 1 ELSE -1 END *
+						  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
+								THEN CASE WHEN Indicator = 'PR' AND ISNULL((SELECT U_NC FROM [finance].[PagosProv] WHERE U_FolioSAP = DocEntry AND U_Tipo = Tipo), 0) = 0 
+								THEN Total - 
+										(Total*ISNULL((select x.Descuento from [finance].[DscProv] x where x.CardCode COLLATE DATABASE_DEFAULT = A.Proveedor AND PP = 'Y'),0)) 
+								ELSE 
+									 CASE WHEN Tipo = 'FR' AND ISNULL((SELECT U_NC FROM [finance].[PagosProv] WHERE U_FolioSAP = DocEntry AND U_Tipo = Tipo), 0) = 0
+									 THEN Total - 
+										(Total*ISNULL((select x.Descuento from [finance].[DscProv] x where x.CardCode COLLATE DATABASE_DEFAULT = a.Proveedor AND PP IS NULL),0)) 
+									 ELSE Total END END
+							ELSE  Total END) / NULLIF(A.U_TC,0)
+						END[Monto Dolares]
+					FROM
+					(
+						SELECT 
+							'FR' Tipo
+							, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+								ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+								END END as 'Estatus'
+							, A.CardCode 'Proveedor'
+							, b.CardName 'Nombre'
+							, A.DocDate 'Fecha de Contabilización'
+							, A.DocDueDate 'Fecha de vencimiento'
+							, A.NumAtCard 'Folio Factura'
+							, A.DocNum 'Folio SAP'
+							, A.U_Flujo
+							, A.DocCur
+							, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+							, A.U_FP
+							, A.DocEntry
+							, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+							, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+							, A.Indicator
+							, A.CreateDate
+							, A.U_TC
+							, G.MetodoPago
+							, G.FormaPago
+							, CASE 
+								WHEN G.IVA08 > 0 THEN '8%' 
+								WHEN G.IVA16 > 0 THEN '16%' 
+								WHEN G.IVA08 + G.IVA16 = 0 THEN '0%' 
+							  END IndicadorIVA
+						FROM
+							[SBOCTRZ].[dbo].OPCH A 
+							INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+							INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+							LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode	
+							LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ G ON G.sFacturaSAP = A.DocNum
+						WHERE
+							A.Doctotal - A.paidTodate <> 0 
+							AND ISNULL(A.Indicator,'')<>'PC' 
+							AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+							AND B.Currency = @MONEDA_PROV
+						--NC
+						UNION ALL
+						SELECT 
+							'NC' Tipo
+							, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+								ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+							  END END as 'Estatus'
+							, A.CardCode 'Proveedor'
+							, b.CardName 'Nombre'
+							, A.DocDate 'Fecha de Contabilización'
+							, A.DocDueDate 'Fecha de vencimiento'
+							, A.NumAtCard 'Folio Factura'
+							, A.DocNum 'Folio SAP'
+							, ''
+							, A.DocCur
+							, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+							, A.U_FP[U_FP]
+							, A.DocEntry
+							, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+							, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+							, A.Indicator
+							, A.CreateDate
+							, A.U_TC
+							, '' MetodoPago
+							, '' FormaPago
+							, '' IndicadorIVA
+						FROM
+							[SBOCTRZ].[dbo].ORPC A 
+							INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+							INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+							LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+						WHERE
+							A.DocStatus = 'O'
+							AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+							AND B.Currency = @MONEDA_PROV
+						UNION ALL
+						--Saldos a favor
+						SELECT DISTINCT
+							'SF' Tipo
+							, 'Saldo a favor' as 'Estatus'
+							, A.CardCode
+							, C.CardName
+							, A.DocDate
+							, A.DocDueDate
+							, ''
+							, A.DocNum
+							, D.U_Flujo
+							, A.DocCurr
+							, Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+							, NULL
+							, A.DocEntry
+							, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+							, CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+							, ''
+							, A.CreateDate
+							, A.U_TC
+							, '' MetodoPago
+							, '' FormaPago
+							, ''IndicadorIVA
+						FROM 
+							[SBOCTRZ].[dbo].OVPM A
+							LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+							INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+							LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
+							INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+							LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+						WHERE
+							A.Canceled = 'N'
+							AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 
+							AND C.GroupCode IN (SELECT * FROM @TblGrpCode) AND C.Currency = @MONEDA_PROV
+					)A
+					LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
+					LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
+					Where [Fecha de vencimiento] BETWEEN @Desde AND @Hasta		
+					Order by Proveedor, [Fecha de vencimiento]
+				END
+		ELSE IF @GroupCode in (2)
+		BEGIN
+			--Facturas
+			SELECT 
+				Estatus
+				, Proveedor 'Proveedor'
+				, Nombre
+				, [Fecha de Contabilización]
+				, [Fecha de vencimiento]
+				, [Folio Factura] Factura
+				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
+				, CASE WHEN ISNULL(b.U_TC,0) = 0 THEN DocCur ELSE 'USD' END 'Moneda del documento'
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END * Total[Monto original]
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR' 
+						THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 
+						THEN Total - 
+								(Total * ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) 
+						ELSE 
+							 CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0
+							 THEN Total - 
+								(Total * ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) 
+							 ELSE Total END END
+					ELSE  Total END Total
+				, CAST(CASE WHEN Tipo = 'SF' 
+							AND ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP, 0) <> 0 
+					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
+				, CAST(CASE WHEN Tipo = 'SF'
+							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
+						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS decimal(18,2)) Aprobado
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
+				, ISNULL(IndicadorIVA, '-') [Indicador IVA]
+				, ISNULL(FormaPago, '-') [Forma de Pago]
+				, ISNULL(MetodoPago, '-') [Metodo de Pago]
+				, ISNULL(B.U_Comentarios, '') Comentarios
+				, CAST(ISNULL(U_Flujo, 0) AS bit) 'Pagado'
+				, NULL[U_CtaCredito]
+				, ISNULL(B.U_NC, 0) 'NC'
+				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
+				, DocEntry
+				, ISNULL(B.U_TC, 0) 'TC'
+				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
+				, ISNULL(Cuenta, '' ) Cuenta
+				, Tipo
+				, U_Condiciones
+				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
+				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
+				, CreateDate[Fecha Documento]
+				, NULL Monto_Dolares
+			FROM
+			(
+				SELECT 
+					'FR' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					  END END as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, b.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.U_TC
+					, A.CreateDate
+					, A.U_Flujo
+					, G.MetodoPago
+					, G.FormaPago
+					, CASE 
+						WHEN G.IVA08 > 0 THEN '8%' 
+						WHEN G.IVA16 > 0 THEN '16%' 
+						WHEN G.IVA08 + G.IVA16 = 0 THEN '0%' 
+					  END IndicadorIVA
+				FROM 
+					[SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode		
+					LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ G ON G.sFacturaSAP = A.DocNum
+				Where 
+					A.Doctotal - A.paidTodate <> 0 
+					AND ISNULL(A.Indicator,'')<>'PC' 
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+					AND B.Currency = @MONEDA_PROV
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'
+					  END END as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, b.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.U_TC
+					, A.CreateDate
+					, ''
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM 
+					[SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where
+					A.DocStatus = 'O'
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+					AND B.Currency = @MONEDA_PROV
+				UNION ALL
+				--Saldos a favor
+				SELECT distinct
+					'SF' Tipo
+					, 'Saldo a favor' as 'Estatus'
+					, A.CardCode
+					, C.CardName
+					, A.DocDate
+					, A.DocDueDate
+					, ''
+					, A.DocNum
+					, A.DocCurr
+					, Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End *-1 as DocTotal
+					, NULL
+					, A.DocEntry
+					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					, CAST(/*C.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, ''
+					, A.U_TC
+					, A.CreateDate
+					, D.U_Flujo
+					, '' MetodoPago
+					, '' FormaPago
+					, '' IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where 
+					A.Canceled = 'N' 
+					AND Case When A.DocCurr = 'USD' Then A.OpenBalFc Else A.OpenBal End <> 0 
+					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) AND C.Currency = @MONEDA_PROV
+			)A
+				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
+				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
+			Where [Fecha de vencimiento] between @Desde AND @Hasta		
+			Order by Proveedor, [Fecha de vencimiento]
+		END
+		ELSE IF @GroupCode in (3)
+		BEGIN
+			--Facturas
+			SELECT 
+				Estatus
+				, Proveedor 'Proveedor'
+				, Nombre
+				, [Fecha de Contabilización]
+				, [Fecha de vencimiento]
+				, [Folio Factura] Factura
+				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
+				, DocCur 'Moneda del documento'
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  Total [Monto original]
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
+							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) ELSE 
+							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
+					   ELSE  Total END Total
+				, CAST(CASE WHEN Tipo = 'SF' 
+							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
+					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta 
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
+				, CAST(CASE WHEN Tipo = 'SF'
+							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
+						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
+				, ISNULL(IndicadorIVA, '-') [Indicador IVA]
+				, ISNULL(FormaPago, '-') [Forma de Pago]
+				, ISNULL(MetodoPago, '-') [Metodo de Pago]
+				, ISNULL(B.U_Comentarios, '') Comentarios
+				, U_CtaCredito
+				, ISNULL(B.U_NC, 0) 'NC'
+				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
+				, DocEntry
+				, ISNULL(B.U_TC, 0) 'TC'
+				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End, 0) as bit) 'Pagar USD'
+				, ISNULL(Cuenta, '' ) Cuenta
+				, Tipo
+				, U_Condiciones
+				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
+				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
+				, CreateDate[Fecha Documento]
+				, NULL Monto_Dolares
+			FROM
+			(
+				SELECT 
+					'FR' Tipo
+					, CASE 
+						WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
+					  END 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.U_CtaCredito
+					, A.CreateDate
+					, G.MetodoPago
+					, G.FormaPago
+					, CASE 
+						WHEN G.IVA08 > 0 THEN '8%' 
+						WHEN G.IVA16 > 0 THEN '16%' 
+						WHEN G.IVA08 + G.IVA16 = 0 THEN '0%' 
+					  END IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+					LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ G ON G.sFacturaSAP = A.DocNum
+				Where 
+					A.Doctotal - A.paidTodate <> 0 
+					AND ISNULL(A.Indicator,'')<>'PC' 
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						  ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END
+					  END 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.U_CtaCredito
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM 
+					[SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where 
+					A.DocStatus = 'O'
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
+				UNION ALL
+				--Saldos a favor
+				SELECT DISTINCT
+					'SF' Tipo
+					, 'Saldo a favor' as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, C.CardName
+					, A.DocDate
+					, A.DocDueDate
+					, ''
+					, A.DocNum
+					, A.DocCurr
+					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END *-1 DocTotal
+					, NULL
+					, A.DocEntry
+					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					, CAST(/*C.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
+					, ''
+					, NULL
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM 
+					[SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				WHERE
+					A.Canceled = 'N'
+					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
+					AND C.GroupCode IN (SELECT * FROM @TblGrpCode)
+			)A
+			LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
+			LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
+			Where [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
+			Order by Proveedor, [Fecha de vencimiento]
+		END
+		ELSE IF @GroupCode in (4)
+		BEGIN
+			--Facturas
+			SELECT 
+				Estatus
+				, Proveedor 
+				, Nombre
+				, [Fecha de Contabilización]
+				, [Fecha de vencimiento]
+				, [Folio Factura] Factura
+				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
+				, DocCur 'Moneda del documento'
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  Total [Monto original]
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END * 
+				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
+							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0
+							 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END ,0)) ELSE 
+							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0
+								  THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
+					   ELSE  Total END Total
+				, CAST(CASE WHEN Tipo = 'SF' 
+							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
+					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS DECIMAL(18,2)) Propuesta 
+				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
+				, CAST(CASE WHEN Tipo = 'SF'
+							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
+						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
+				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
+				, ISNULL(IndicadorIVA, '-') [Indicador IVA]
+				, ISNULL(FormaPago, '-') [Forma de Pago]
+				, ISNULL(MetodoPago, '-') [Metodo de Pago]
+				, ISNULL(B.U_Comentarios, '') Comentarios
+				, NULL[U_CtaCredito]
+				, ISNULL(B.U_NC, 0) 'NC'
+				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
+				, DocEntry
+				, ISNULL(B.U_TC, 0) 'TC'
+				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 End,0) as bit) 'Pagar USD'
+				, ISNULL(Cuenta, '' ) Cuenta
+				, Tipo
+				, U_Condiciones
+				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
+				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
+				, CreateDate[Fecha Documento]
+				, NULL Monto_Dolares
+			FROM
+			(
+				SELECT 
+					'FR' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						  ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END
+					  END as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END AS 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.CreateDate
+					, G.MetodoPago
+					, G.FormaPago
+					, CASE 
+						WHEN G.IVA08 > 0 THEN '8%' 
+						WHEN G.IVA16 > 0 THEN '16%' 
+						WHEN G.IVA08 + G.IVA16 = 0 THEN '0%' 
+					  END IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+					LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ G ON G.sFacturaSAP = A.DocNum
+				WHERE
+					A.Doctotal - A.paidTodate <> 0
+					AND ISNULL(A.Indicator,'')<>'PC' 
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						 ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido'END
+					  END as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End * -1 as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST('' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				Where
+					A.DocStatus = 'O'
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode)
+				UNION ALL
+				--Saldos a favor
+				SELECT DISTINCT
+					'SF' Tipo
+					, 'Saldo a favor' as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, C.CardName
+					, A.DocDate
+					, A.DocDueDate
+					, ''
+					, A.DocNum
+					, A.DocCurr
+					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal End *-1 DocTotal
+					, NULL
+					, A.DocEntry
+					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					, CAST('' AS NVARCHAR(MAX)) U_Condiciones
+					, ''
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM 
+					[SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				Where 
+					A.Canceled = 'N' 
+					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
+					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) 
+			)A
+				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
+				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
+			where Proveedor in ('20248', '20250', '20705','22305', '20667')
+			      AND [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
+			ORDER BY Proveedor, [Fecha de vencimiento]
+		END
+		ELSE IF @GroupCode in (5, 6)
+		BEGIN
+			--Facturas
+			SELECT 
+				Estatus
+				, Proveedor 'Proveedor'
+				, Nombre
+				, [Fecha de Contabilización]
+				, [Fecha de vencimiento]
+				, [Folio Factura] Factura
+				, CAST([Folio SAP] AS DECIMAL(18,4)) [Folio SAP]
+				, DocCur 'Moneda del documento'
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  Total [Monto original]
+				, CASE WHEN ISNULL(B.U_NC, 0) = 0
+				  THEN 1 ELSE -1 END *
+				  CASE WHEN Tipo = 'FR' OR Indicator = 'PR'
+							THEN CASE WHEN Indicator = 'PR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP = 'Y' THEN C.Descuento END,0)) ELSE 
+							     CASE WHEN Tipo = 'FR' AND ISNULL(B.U_NC, 0) = 0 THEN Total - (Total*ISNULL(CASE WHEN PP IS NULL THEN C.Descuento END,0)) ELSE Total END END
+					   ELSE  Total END Total
+				, CAST(CASE WHEN Tipo = 'SF' 
+							AND ISNULL(ISNULL(B.U_PropuestaUSD,0) + ISNULL(B.U_PropuestaMXP,0), 0) <> 0 
+					   THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') IN ('P', 'A') Then 1 Else 0 End as bit) END AS BIT) 'Prop'
+				, CAST(ISNULL(B.U_PropuestaUSD, 0) AS decimal(18,2)) Propuesta 
+				, CAST(ISNULL(B.U_PropuestaMXP, 0) AS DECIMAL(18,2)) 'Propuesta MXP'
+				, CAST(CASE WHEN Tipo = 'SF'
+							AND ISNULL(ISNULL(B.U_AprobadoMXP,0) + ISNULL(B.U_AprobadoUSD,0), 0) <> 0 
+						THEN 1 ELSE Cast(Case When ISNULL(U_FP, 'N') = 'A' Then 1 Else 0 End as bit) END AS BIT) 'Apro'
+				, CAST(ISNULL(B.U_AprobadoUSD, 0) AS DECIMAL(18,2)) Aprobado
+				, CAST(ISNULL(B.U_AprobadoMXP, 0) AS DECIMAL(18,2)) 'Aprobado MXP'
+				, ISNULL(IndicadorIVA, '-') [Indicador IVA]
+				, ISNULL(FormaPago, '-') [Forma de Pago]
+				, ISNULL(MetodoPago, '-') [Metodo de Pago]
+				, ISNULL(B.U_Comentarios, '') Comentarios
+				, NULL[U_CtaCredito]
+				, ISNULL(B.U_NC, 0) 'NC'
+				, Case When ISNULL(U_FP, 'N') = 'N' Then 'Normal' 
+					   When ISNULL(U_FP, 'N') = 'P' Then 'Propuesta'
+					   When ISNULL(U_FP, 'N') = 'A' Then 'Aprobado' END  Situación
+				, DocEntry
+				, ISNULL(B.U_TC, 0) 'TC'
+				, Cast(ISNULL(Case When ISNULL(B.U_USD, '') = 'Y' Then 1 END,0) as bit) 'Pagar USD'
+				, ISNULL(Cuenta, '' ) Cuenta
+				, Tipo
+				, U_Condiciones
+				, ISNULL(CASE WHEN C.PP IS NULL THEN C.Descuento END,0) Descuento
+				, ISNULL(B.PagosInicial, 0) [Contemplar Pago Inicial]
+				, CreateDate[Fecha Documento]
+				, NULL Monto_Dolares
+			FROM
+			(
+				SELECT 
+					'FR' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+					     ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
+					  END 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, Case When A.DocCur = 'USD' Then (A.DocTotalFC - A.PaidFC) Else (A.DocTotal-A.PaidToDate) End as 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' as nvarchar(MAX)) U_Condiciones
+					, A.Indicator
+					, A.CreateDate
+					, G.MetodoPago
+					, G.FormaPago
+					, CASE 
+						WHEN G.IVA08 > 0 THEN '8%' 
+						WHEN G.IVA16 > 0 THEN '16%' 
+						WHEN G.IVA08 + G.IVA16 = 0 THEN '0%' 
+					  END IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].OPCH A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+					LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ G ON G.sFacturaSAP = A.DocNum
+				WHERE 
+					A.Doctotal - A.paidTodate <> 0
+					AND ISNULL(A.Indicator,'')<>'PC' 
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+					AND B.Currency = @MONEDA_PROV
+				--NC
+				UNION ALL
+				SELECT 
+					'NC' Tipo
+					, CASE WHEN DocDueDate >= GETDATE() Then 'Por Vencer'
+						 ELSE CASE WHEN DocDueDate <= GETDATE() THEN 'Vencido' END 
+					  END as 'Estatus'
+					, A.CardCode 'Proveedor'
+					, B.CardName 'Nombre'
+					, A.DocDate 'Fecha de Contabilización'
+					, A.DocDueDate 'Fecha de vencimiento'
+					, A.NumAtCard 'Folio Factura'
+					, A.DocNum 'Folio SAP'
+					, A.DocCur
+					, CASE WHEN A.DocCur = 'USD' THEN (A.DocTotalFC - A.PaidFC) ELSE (A.DocTotal-A.PaidToDate) END * -1 'Total'
+					, A.U_FP
+					, A.DocEntry
+					, ISNULL(B.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(B.DflAccount,'') Cuenta 
+					, CAST(/*B.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
+					, A.Indicator
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].ORPC A 
+					INNER JOIN [SBOCTRZ].[dbo].OCRD B ON A.CardCode = B.CardCode AND B.CardCode NOT IN ('20012','21478')
+					INNER JOIN [SBOCTRZ].[dbo].OCTG D ON B.GroupNum = D.GroupNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON B.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON B.BankCode = F.BankCode
+				WHERE
+					A.DocStatus = 'O'
+					AND B.GroupCode IN (SELECT * FROM @TblGrpCode) 
+					AND B.Currency = @MONEDA_PROV
+				UNION ALL
+				--Saldos a favor
+				SELECT DISTINCT
+					'SF' Tipo
+					, 'Saldo a favor' 'Estatus'
+					, A.CardCode 'Proveedor'
+					, C.CardName
+					, A.DocDate
+					, A.DocDueDate
+					, ''
+					, A.DocNum
+					, A.DocCurr
+					, CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END *-1 DocTotal
+					, NULL
+					, A.DocEntry
+					, ISNULL(C.BankCode,'') BankCode,ISNULL(F.BankName,'') BankName,ISNULL(C.DflAccount,'') Cuenta 
+					, CAST(/*C.U_Condiciones*/'' AS NVARCHAR(MAX)) U_Condiciones
+					, ''
+					, A.CreateDate
+					, '' MetodoPago
+					, '' FormaPago
+					, ''IndicadorIVA
+				FROM
+					[SBOCTRZ].[dbo].OVPM A
+					LEFT JOIN [SBOCTRZ].[dbo].VPM2 B ON A.DocEntry = B.DocNum
+					INNER JOIN [SBOCTRZ].[dbo].OCRD C ON A.CardCode = C.CardCode AND C.CardCode NOT IN ('20012','21478')
+					LEFT JOIN [SBOCTRZ].[dbo].OPCH D ON B.DocEntry = D.DocEntry AND ISNULL(D.Indicator,'')<>'PC'
+					INNER JOIN [SBOCTRZ].[dbo].OCRG E ON C.GroupCode = E.GroupCode 
+					LEFT JOIN [SBOCTRZ].[dbo].ODSC F ON C.BankCode = F.BankCode
+				WHERE
+					A.Canceled = 'N'
+					AND CASE WHEN A.DocCurr = 'USD' THEN A.OpenBalFc ELSE A.OpenBal END <> 0 
+					AND C.GroupCode IN (SELECT * FROM @TblGrpCode) 
+					AND C.Currency = @MONEDA_PROV
+			)A
+				LEFT JOIN [finance].[PagosProv] B ON A.DocEntry = B.U_FolioSAP AND Tipo = B.U_Tipo
+				LEFT JOIN [finance].[DscProv] C ON C.CardCode = A.Proveedor
+			WHERE [Fecha de vencimiento] BETWEEN @Desde AND @Hasta
+			ORDER BY Proveedor, [Fecha de vencimiento]
+		END
+
+		IF @GroupCode in (2,3) SELECT 'Propuesta, Aprobado, U_CtaCredito, DocEntry, TC, Cuenta, Tipo, U_Condiciones, Descuento, Situacion, Pagar_USD, Contemplar_Pago_Inicial, Monto_Dolares' HiddenColumns
+		ELSE SELECT 'Propuesta, Aprobado, U_CtaCredito, DocEntry, TC, Pagar_USD, Cuenta, Tipo, U_Condiciones, Descuento, Situacion, Pagar_USD, Contemplar_Pago_Inicial, Monto_Dolares' HiddenColumns
+	END
+
+
 END
