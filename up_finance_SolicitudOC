@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 06/05/2025 10:30:49 a. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 22/05/2025 12:34:32 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -117,6 +117,12 @@ ALTER PROCEDURE [dbo].[up_finance_SolicitudOC]
  	,@IdSolicitudRequsicion INT = NULL
  	,@Presupuesto			DECIMAL(18, 4) = NULL 
  	,@Consumido				DECIMAL(18, 4) = NULL
+	,@HTML					VARCHAR(MAX) = NULL
+	,@CorreoResponsable		VARCHAR(2500) = NULL
+	,@Solicita				VARCHAR(350) = NULL
+	,@AcctCode				VARCHAR(250) = NULL
+	,@FechaDesde			DATE = NULL
+	,@FechaHasta			DATE = NULL
 AS
 BEGIN
 	DECLARE @Rol INT; DECLARE @Sucursal VARCHAR(10); DECLARE @RHNumEmp VARCHAR(10); 
@@ -298,9 +304,9 @@ BEGIN
 				-- RESPONSABLE DE LA CUENTA
  				IF EXISTS(SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario and AcctCode = @Cuenta) SET @PermisoAut = 1 ELSE SET @PermisoAut = 0
  				-- ADMINISTRADOR
- 				IF @Rol IN (1)  SELECT 0 Administrador, 0 Cta, @PermisoAut Autorizacion, 0 Presupuesto 
+ 				--IF @Rol IN (1)  SELECT 0 Administrador, 0 Cta, 0 Autorizacion, 0 Presupuesto 
  				-- VERÓNICA SOSA
- 				ELSE IF @Rol IN (21) SELECT 0 Administrador, 1 Cta, @PermisoAut Autorizacion, 0 Presupuesto 
+ 				 IF @Rol IN (21) SELECT 0 Administrador, 1 Cta, @PermisoAut Autorizacion, 0 Presupuesto 
  				-- PATRICIA
  				ELSE IF @Rol IN (47) SELECT 0 Administrador, 0 Cta, @PermisoAut Autorizacion, 1 Presupuesto 
  				-- GENERAL
@@ -698,26 +704,27 @@ BEGIN
 				-- Catalogo de cuentas para requisiciones
 				ELSE IF ISNULL(@OPC, 1) = 19
 				BEGIN
-					SET @QRY = ' SELECT ''0000-000-000'' Cuenta, ''Otros'' Nombre'
  					SET @QRY += '
+						SELECT ''0000-000-000'' Cuenta, ''Otros'' Nombre
  						UNION ALL
  						SELECT AcctCode Cuenta, AcctName Nombre
  						FROM SBOCTRZ.dbo.OACT 
  						WHERE 
  							AcctCode LIKE ''6%'' 
  							AND Postable = ''Y'' 
- 							AND FrozenFor = ''N'''
- 					IF @Usuario NOT IN (69) AND ISNULL(@PermisoVis, 0) = 0
- 					BEGIN
- 						IF @Usuario in (4530) 
- 						BEGIN 
- 							SET @Qry += ' AND AcctCode IN (SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario)' 
- 						END
- 						ELSE 
- 						BEGIN 
- 							SET @Qry += ' AND AcctCode IS NULL;'
- 						END
-					END
+ 							AND FrozenFor = ''N''
+					'
+ 					--IF @Usuario NOT IN (69) AND ISNULL(@PermisoVis, 0) = 0
+ 					--BEGIN
+ 					--	IF @Usuario in (4530) 
+ 					--	BEGIN 
+ 							--SET @Qry += ' AND AcctCode IN (SELECT AcctCode FROM finance.Responsables_Cuentas WHERE USERID = @Usuario)' 
+ 						--END
+ 						--ELSE 
+ 						--BEGIN 
+ 							--SET @Qry += ' AND AcctCode IS NULL;'
+ 						--END
+					--END
 
 					SET @paramDefinition = N'@Usuario INT'
 					EXEC sp_executesql @QRY, @paramDefinition, @Usuario 
@@ -785,6 +792,10 @@ BEGIN
 					SELECT 43, 36, '7.- El XML debe ser de tipo "Ingreso".' AS [Texto] UNION ALL
 					SELECT 44, 36, '8.- El UUID debe ser válido ante el SAT.' AS [Texto] UNION ALL
 					SELECT 45, 36, '9.- El uso de CFDI debe ser "G03".' AS [Texto]
+				END
+				ELSE IF ISNULL(@OPC, 1) = 21
+				BEGIN
+					SELECT * FROM sap.ODRF WHERE Indicator = 'HW' AND DocType = 'S' AND ObjType = 22 AND U_FolioSolicitud = CAST(@Folio AS VARCHAR(150))
 				END
 			END TRY
 			BEGIN CATCH
@@ -958,13 +969,14 @@ BEGIN
 				-- REQUISICIÓN
 				ELSE IF @OPC = 7
 				BEGIN
-				SET @IdSolicitudCompra = (SELECT MAX(ID) FROM finance.SolicitudCompra)
- 						SET @IdSolicitudRequsicion = (SELECT MAX(ID) FROM finance.RequisicionCompra)
- 						IF (@IdSolicitudCompra > @IdSolicitudRequsicion) SET @Id = @IdSolicitudCompra + 1
- 						ELSE SET @Id = @IdSolicitudRequsicion + 1
 						
 					IF NOT EXISTS (SELECT Id FROM finance.RequisicionCompra where Id = @IdRequisicion)
 					BEGIN
+						SET @IdSolicitudCompra = (SELECT MAX(ID) FROM finance.SolicitudCompra)
+ 						SET @IdSolicitudRequsicion = (SELECT ISNULL(MAX(ID), 0) FROM finance.RequisicionCompra)
+ 						IF (@IdSolicitudCompra > @IdSolicitudRequsicion) SET @Id = @IdSolicitudCompra + 1
+ 						ELSE SET @Id = @IdSolicitudRequsicion + 1
+
 						INSERT INTO finance.RequisicionCompra 
 							(Id, Motivo, AcctCode, EstatusRequisicion, UserID, CreateDate,  Updatedate, EstatusDocumentacion, UserCuenta, UserAutorizacion, UserPresupuesto)
 						VALUES
@@ -996,8 +1008,97 @@ BEGIN
 						SET @PresupuestoCuenta = (SELECT Presupuesto  FROM finance.Gastos_Presupuesto WHERE AcctCode = @Cuenta AND U_Month = MONTH(GETDATE()) AND U_Year = YEAR(GETDATE()))
 						--IF (@PresupuestoUtilizado + 1 <= @PresupuestoUtilizado) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
 						IF (@PresupuestoUtilizado <=  @PresupuestoCuenta) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
-						ELSE UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Pendiente' WHERE Id = @IdRequisicion
+						ELSE
+						BEGIN 
+							UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Pendiente' WHERE Id = @IdRequisicion
+							SELECT 
+								A.ID Folio
+								, CONCAT(B.AcctCode, ' - ', B.AcctName) Cuenta
+								, A.AcctCode
+								, C.Nombre Solicita
+								, A.Motivo
+								, ISNULL(E.Correo, 'miguel.hernandez@tractozone.com.mx') CorreoResponsable
+								, SUM(F.Importe) Importe
+							INTO #DT1
+							FROM 
+								finance.RequisicionCompra A
+								JOIN SBOCTRZ.DBO.OACT B ON A.AcctCode = B.AcctCode
+								JOIN HNT.Usuarios C ON A.UserID = C.UserID
+								JOIN finance.Responsables_Cuentas D ON A.AcctCode = D.AcctCode
+								JOIN HNT.Usuarios E ON D.UserID = E.UserID
+								JOIN finance.CotizacionDetalle F ON A.Id = F.IdRequisicion and F.Autorizado = 'Y'
+							WHERE A.Id = @IdRequisicion
+							GROUP BY A.ID, B.AcctCode, B.AcctName, A.AcctCode, C.Nombre, A.Motivo, E.Correo
 
+							DECLARE InfoUser CURSOR FOR SELECT Folio, Cuenta, Solicita, Motivo, CorreoResponsable, AcctCode, Importe FROM #DT1
+							OPEN InfoUser
+								FETCH NEXT FROM InfoUser INTO @Folio, @Cuenta, @Solicita, @Motivo, @CorreoResponsable, @AcctCode, @Importe
+								WHILE @@fetch_status = 0
+								BEGIN
+									SET @Presupuesto = (
+										SELECT ISNULL(Presupuesto, 0.00) 
+										FROM finance.Gastos_Presupuesto
+										WHERE 
+											AcctCode = @AcctCode
+											AND U_Month = MONTH(GETDATE())
+											AND U_Year = YEAR(GETDATE())	
+									)
+
+									SET @Consumido = (
+										SELECT SUM(ISNULL(Total, 0)) Consumido FROM (
+											SELECT SUM(ISNULL(LineTotal, 0)) Total 
+											FROM
+												SBOCTRZ.dbo.POR1 A
+												JOIN SBOCTRZ.dbo.OPOR B ON a.DocEntry = b.DocEntry
+											WHERE
+												A.AcctCode = @AcctCode
+												AND B.DocStatus = 'C'
+												AND MONTH(B.DocDate) = MONTH(GETDATE())
+												AND YEAR(B.DocDate) = YEAR(GETDATE())
+										) T0
+									)
+
+									SET @HTML = ' 
+										<p>Buen día</p>
+										<p>El folio de requisición <b style="font-size:14px;">' + CAST(@Folio AS VARCHAR(250)) + '</b> se encuentra pendiente de autorización de presupuesto</p>
+										<fieldset class="border p-2">
+											<legend>Requsición</legend>
+												<p><b style="font-size:14px;">Solicita: </b>' + CAST(@Solicita AS VARCHAR(250)) + '</p>
+												<p><b style="font-size:14px;">Cuenta: </b>' + CAST(@Cuenta AS VARCHAR(250)) + '</p>
+												<p><b style="font-size:14px;">Motivo: </b>' + CAST(@Motivo AS VARCHAR(250)) + '</p>
+												<p><b style="font-size:14px;">Importe: $</b>' + CAST(ISNULL(@Importe, 0.00) AS VARCHAR(250)) + '</p>
+											</legend>
+										</fieldset>
+										<fieldset class="border p-2">
+											<legend>Cuenta</legend>
+												<p><b style="font-size:14px;">Presupuesto: </b> $' + CAST(ISNULL(@Presupuesto, 0.00) AS VARCHAR(250)) + '</p>
+												<p><b style="font-size:14px;">Consumido: </b> $' + CAST(ISNULL(@Consumido, 0.00) AS VARCHAR(250)) + '</p>
+												<p><b style="font-size:14px;">Disponible: </b> $' + CAST(ISNULL(@Presupuesto, 0.00) - ISNULL(@Consumido, 0.00) AS VARCHAR(250)) + '</p>
+											</legend>
+										</fieldset>
+									'
+									SET @Correo = @CorreoResponsable
+									FETCH NEXT FROM InfoUser INTO @Folio, @Cuenta, @Solicita, @Motivo, @CorreoResponsable, @AcctCode, @Importe
+								END
+							CLOSE InfoUser
+							DEALLOCATE InfoUser
+		
+							 --SE ENVÍA EL CORREO
+							DECLARE @BodyCI1 NVARCHAR(MAX), @MailCI1 VARCHAR(MAX)
+		
+							SET @BodyCI1 = HNT_TRZ.dbo.fu_hnt_Str_Mail('Autorización Requisición', @HTML)
+		
+							EXEC msdb.dbo.sp_send_dbmail   
+								@profile_name ='Correo Halconet',
+								--@recipients = @Correo,
+								@recipients = 'miguel.hernandez@tractozone.com.mx',
+								@subject = N'Autorización Requisición',
+								@body = @BodyCI1,
+								@body_format= 'HTML',
+								@blind_copy_recipients = 'miguel.hernandez@tractozone.com.mx'
+
+							DROP TABLE #DT1
+						END
 						SELECT 'Solicitud actualizada' Msj, @IdRequisicion Id
 					END
 				END
@@ -1079,37 +1180,70 @@ BEGIN
 
 					SET @QRY = '
 						SELECT * FROM (
-							--SELECT 
-							--	Id [Folio]
-							--	, ''Requisición'' [Solicitud]
-							--	, A.CreateDate [Fecha Creacion]
-							--	, NULL [Fecha Factura]
-							--	, B.RH_NumEmpleado NumEmp
-							--	, B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS Nombre
-							--	, ISNULL(D.CardName, '''') [Proveedor]
-							--	, SUM(Importe) [Importe]
-							--	, CASE 
-							--		WHEN A.AcctCode = ''0000-000-000'' THEN ''Pendiente selección de cuenta''
-							--		WHEN ISNULL(C.Autorizado, ''N'') = ''N'' THEN ''Pendiente autorización responsable de la cuenta''
-							--		WHEN A.EstatusRequisicion = ''Pendiente'' THEN ''Pendiente autorización presupuesto''
-							--		ELSE A.EstatusRequisicion 
-							--	  END [Estatus Solicitud]
-							--	, NULL [Fecha Autorización]
-							--	, ISNULL(A.EstatusDocumentacion, ''Sin Carga Previa'') [Estatus Documentos]
-							--	, Motivo
-							--	, 0 [Activo_Fijo]
-							--	, NULL [Orden_de_Compra]
-							--	, NULL [No. Orden_e_Compra]
-							--	, B.Correo Correo 
-							--	, NULL [Factura_de_Proveedor]
-							--FROM 
-							--	finance.RequisicionCompra A
-							--	JOIN hnt.Usuarios B ON A.UserID = B.UserID
-							--	LEFT JOIN finance.CotizacionDetalle C ON A.Id = C.IdRequisicion AND C.Autorizado = ''Y''
-							--	LEFT JOIN SBOCTRZ.dbo.OCRD D ON D.CardCode = C.CardCode
-							--WHERE CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
-							--GROUP BY A.Id, A.CreateDate, B.RH_NumEmpleado, B.Nombre, A.AcctCode, A.EstatusRequisicion, EstatusRequisicion, A.EstatusDocumentacion, A.Motivo, B.Correo, D.CardName, C.Autorizado
-							--UNION ALL
+							SELECT 
+								A.Id [Folio]
+								, ''Requisición'' [Solicitud]
+								, A.CreateDate [Fecha Creacion]
+								, NULL [Fecha Factura]
+								, B.RH_NumEmpleado NumEmp
+								, B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS Nombre
+								, ISNULL(D.CardName, '''') [Proveedor]
+								, SUM(Importe) [Importe]
+								, CASE 
+									WHEN A.AcctCode = ''0000-000-000'' THEN ''Pendiente selección de cuenta''
+									WHEN ISNULL(C.Autorizado, ''N'') = ''N'' THEN ''Pendiente autorización responsable de la cuenta''
+									WHEN A.EstatusRequisicion = ''Pendiente'' THEN ''Pendiente autorización presupuesto''
+									ELSE A.EstatusRequisicion 
+									END [Estatus Solicitud]
+								, NULL [Fecha Autorización]
+								, ISNULL(A.EstatusDocumentacion, ''Sin Carga Previa'') [Estatus Documentos]
+								, Motivo
+								, 0 [Activo_Fijo]
+								, NULL [Orden_de_Compra]
+								, F.DocNum [No. Orden_e_Compra]
+								, B.Correo Correo 
+								, NULL [Factura_Proveedor]
+							FROM 
+								finance.RequisicionCompra A
+								JOIN hnt.Usuarios B ON A.UserID = B.UserID
+								LEFT JOIN finance.CotizacionDetalle C ON A.Id = C.IdRequisicion AND C.Autorizado = ''Y''
+								LEFT JOIN SBOCTRZ.dbo.OCRD D ON D.CardCode = C.CardCode
+								LEFT JOIN sap.ODRF E ON E.U_FolioSolicitud = CAST(A.Id AS VARCHAR(50)) AND E.Indicator = ''HW''
+								LEFT JOIN SBOCTRZ.dbo.OPOR F ON E.TransId = F.DocEntry AND E.ObjType = 22 and E.DocType = ''S''
+							WHERE 
+								CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
+					'
+					-- ROL DE VERÓNICA SOSA
+					IF @Rol = 21 BEGIN SET @QRY += '
+								AND A.AcctCode = ''0000-000-000'' OR UserCuenta = @Usuario
+					' END
+					-- RESPONSABLE DE LA CUENTA
+					IF EXISTS (SELECT * FROM finance.Responsables_Cuentas WHERE UserId = @Usuario) BEGIN SET @QRY += '
+								AND A.AcctCode IN (SELECT X.AcctCode FROM finance.Responsables_Cuentas X WHERE UserId = @Usuario) OR A.UserAutorizacion = @Usuario
+					' END
+					-- ROL DE PATRICIA GONZALEZ
+					IF @ROL = 47 BEGIN SET @QRY += '
+								AND A.EstatusRequisicion IN (''Pendiente'', ''Autorizado'', ''Rechazado'') OR UserPresupuesto = @USUARIO
+					' END
+					IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT)
+					BEGIN
+						IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
+								OR B.RH_NumEmpleado = @NumEmp
+						' 
+						END
+						ELSE BEGIN SET @QRY += ' 
+								AND B.RH_NumEmpleado COLLATE DATABASE_DEFAULT IN (SELECT RHNum FROM #Employees)
+						' END
+					END
+					ELSE IF @Rol IN (24, 1)
+					BEGIN
+						IF ISNULL(@NumEmp, '0') <> '0' BEGIN SET @QRY += ' 
+								AND B.RH_NumEmpleado = @NumEmp
+						' END
+					END
+					SET @QRY += '	
+							GROUP BY A.Id, A.CreateDate, B.RH_NumEmpleado, B.Nombre, A.AcctCode, A.EstatusRequisicion, EstatusRequisicion, A.EstatusDocumentacion, A.Motivo, B.Correo, D.CardName, C.Autorizado, F.DocNum
+							UNION ALL
 							SELECT 
 								A.Id[Folio]
 								, ''OC'' [Solicitud]
@@ -1128,16 +1262,17 @@ BEGIN
 								, F.DocNum [No. Orden de Compra]
 								, E.Correo
 								, J.DOCNUM [Factura_Proveedor]
-							FROM finance.SolicitudCompra A 
-							LEFT JOIN [PJ_RH].dbo.VW_Empleados B on A.NumEmp COLLATE DATABASE_DEFAULT = B.cvetra
-							LEFT JOIN sap.ODRF C ON C.U_FolioSolicitud = A.Id AND Indicator = ''HW''
-							LEFT JOIN finance.SolicitudCompraRelacionXML D ON D.FolioSolicitud = A.Id AND ISNULL(D.U_AjusteManual, D.U_Autorizado) = ''A''
-							LEFT JOIN SBOCTRZ.dbo.OPOR F ON C.TransId = F.DocEntry AND C.ObjType = 22 and C.DocType = ''S''
-							JOIN hnt.Usuarios E ON E.UserID = A.Usuario
-							LEFT JOIN sap.OWDD G ON G.DocEntry = A.Id AND G.ObjType = 27
-							LEFT JOIN sap.WDD1 H ON H.WddCode = G.WddCode 
-							LEFT JOIN SBOCTRZ.dbo.PCH1 I ON F.DocEntry = I.BaseEntry
-							LEFT JOIN SBOCTRZ.dbo.OPCH J ON I.DocEntry = J.DocEntry
+							FROM 
+								finance.SolicitudCompra A 
+								LEFT JOIN [PJ_RH].dbo.VW_Empleados B on A.NumEmp COLLATE DATABASE_DEFAULT = B.cvetra
+								LEFT JOIN sap.ODRF C ON C.U_FolioSolicitud = A.Id AND Indicator = ''HW''
+								LEFT JOIN finance.SolicitudCompraRelacionXML D ON D.FolioSolicitud = A.Id AND ISNULL(D.U_AjusteManual, D.U_Autorizado) = ''A''
+								LEFT JOIN SBOCTRZ.dbo.OPOR F ON C.TransId = F.DocEntry AND C.ObjType = 22 and C.DocType = ''S''
+								JOIN hnt.Usuarios E ON E.UserID = A.Usuario
+								LEFT JOIN sap.OWDD G ON G.DocEntry = A.Id AND G.ObjType = 27
+								LEFT JOIN sap.WDD1 H ON H.WddCode = G.WddCode 
+								LEFT JOIN SBOCTRZ.dbo.PCH1 I ON F.DocEntry = I.BaseEntry
+								LEFT JOIN SBOCTRZ.dbo.OPCH J ON I.DocEntry = J.DocEntry
 							WHERE 
 								CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
 								--AND B.ESTATUS <> ''B''
@@ -1161,12 +1296,13 @@ BEGIN
 					END
 					SET	@QRY += '
 							GROUP BY A.Id, A.CreateDate, NumEmp, B.Nombre, A.CardName,Importe, A.Estatus, H.UpdateDate, PermissionDate, EstatusDocumentacion, Motivo, IsActivoFijo, C.TransId, F.DocNum, E.Correo, J.DOCNUM, J.DocDate
+							--ORDER BY Folio DESC
 						) T0 
 						ORDER BY CASE WHEN Solicitud = ''Requisición'' THEN 0 ELSE 1 END, Folio DESC
 					'
 
-					SET @paramDefinition = '@Desde DATE, @Hasta DATE, @NumEmp VARCHAR(10)'
-					EXEC sp_executesql @QRY, @paramDefinition, @Desde, @Hasta, @NumEmp
+					SET @paramDefinition = '@Desde DATE, @Hasta DATE, @NumEmp VARCHAR(10), @Usuario INT'
+					EXEC sp_executesql @QRY, @paramDefinition, @Desde, @Hasta, @NumEmp, @Usuario
 					SELECT @Desde, @Hasta
 				END
 				ELSE IF @OPC = 2
@@ -1716,8 +1852,12 @@ BEGIN
 						, AcctCode
 						, EstatusRequisicion
 						, EstatusDocumentacion 
-					FROM finance.RequisicionCompra 
-					WHERE Id = @IdRequisicion
+						, F.DocNum [OC_DocNum]
+					FROM 
+						finance.RequisicionCompra A
+						LEFT JOIN sap.ODRF E ON E.U_FolioSolicitud = CAST(A.Id AS VARCHAR(50)) AND E.Indicator = 'HW'
+						LEFT JOIN SBOCTRZ.dbo.OPOR F ON E.TransId = F.DocEntry AND E.ObjType = 22 and E.DocType = 'S'
+					WHERE A.Id = @IdRequisicion
 
 					-- DETALLE COTIZACION 
 					SELECT
@@ -1799,7 +1939,7 @@ BEGIN
 						, CAST(ISNULL(IsActivoFijo, 0) AS bit)[Activo Fijo]
 						, C.TransId [Orden_de_Compra]
 						, F.DocNum [No. Orden de Compra]
-						, CONCAT(E.Correo, ';miguel.hernandez@tractozone.com.mx;') Correo
+						, E.Correo
 						, J.DOCNUM [Factura_Proveedor]
 					FROM 
 						sap.ODRF C
@@ -1807,7 +1947,7 @@ BEGIN
 						LEFT JOIN [PJ_RH].dbo.VW_Empleados B on A.NumEmp COLLATE DATABASE_DEFAULT = B.cvetra
 						LEFT JOIN finance.SolicitudCompraRelacionXML D ON D.FolioSolicitud = A.Id AND ISNULL(D.U_AjusteManual, D.U_Autorizado) = 'A'
 						LEFT JOIN SBOCTRZ.dbo.OPOR F ON C.TransId = F.DocEntry AND C.ObjType = 22 and C.DocType = 'S'
-						JOIN hnt.Usuarios E ON E.UserID = ISNULL(A.USUARIO , C.U_FOLIOHALCON)
+						JOIN hnt.Usuarios E ON E.UserID = A.Usuario OR E.UserID = 6117
 						LEFT JOIN sap.OWDD G ON G.DocEntry = A.Id AND G.ObjType = 27
 						LEFT JOIN sap.WDD1 H ON H.WddCode = G.WddCode 
 						LEFT JOIN SBOCTRZ.dbo.PCH1 I ON F.DocEntry = I.BaseEntry
@@ -1858,51 +1998,54 @@ BEGIN
 					ORDER BY dAlta DESC
 				END
 				--
- 				IF @OPC = 15
+				IF @OPC = 15
 				BEGIN
-					SELECT 
-						'Factura' [Tipo_Documento]
-						, E.Id Folio_Requisicion
-						, CONCAT(C.CardCode, ' - ', C.CardName) [Proveedor]
-						, CAST(B.DocNum AS VARCHAR(50)) [No Documento]
-						, B.Project
-						, FORMAT(B.DocDate, 'yyyy-MM-dd') [Fecha_Contabilizacion]
-						, SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Monto
-						, A.LineMemo
-					FROM 
-						SBOCTRZ.dbo.JDT1 A
-						JOIN SBOCTRZ.DBO.OPCH B ON A.TransId = B.TransId 
-						JOIN SBOCTRZ.DBO.OCRD C ON a.ContraAct = c.CardCode and frozenFor = 'N' 
-						LEFT JOIN sap.ODRF D ON B.DocEntry = D.Transid 
-						left join finance.RequisicionCompra	E ON D.U_FolioSolicitud = CAST(E.Id AS VARCHAR(25))
-					WHERE
-								Account = @Cuenta
-								and a.indicator <> 'CF'
-								and MONTH(RefDate) = 3
-								and YEAR(RefDate) = 2025
-								AND A.TransType = 18
-					GROUP BY B.DocNum, B.Project, B.DocDate, A.LineMemo, C.CardCode, C.CardName, E.Id
-					UNION ALL
-					SELECT
-						'Nota de crédito' [Tipo_Documento]
-						, '' Folio_Requisicion
-						, CONCAT(C.CardCode, ' - ', C.CardName) 
-						, CAST(B.DocNum AS VARCHAR(50)) [No Documento]
-						, B.Project
-						, FORMAT(B.DocDate, 'yyyy-MM-dd') [Fecha_Contabilizacion]
-						, SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Monto
-						, A.LineMemo
-					FROM 
-						SBOCTRZ.dbo.JDT1 A
-						JOIN SBOCTRZ.DBO.ORPC B ON A.TransId = B.TransId 
-						JOIN SBOCTRZ.DBO.OCRD C ON a.ContraAct = c.CardCode and frozenFor = 'N'
-					WHERE
-								Account = @Cuenta
-								and MONTH(RefDate) = 3
-								and YEAR(RefDate) = 2025
-								AND A.TransType = 19
-					GROUP BY B.DocNum, B.Project, B.DocDate, A.LineMemo, C.CardCode, C.CardName
-
+					SELECT * FROM (
+						SELECT 
+							'Pedido de proveedor' [Tipo_Documento]
+							, CONCAT(C.CardCode, ' - ', C.CardName) [Proveedor]
+							, B.Project Proyecto
+							, CAST(A.DocNum AS VARCHAR(50)) [Pedido de proveedor]
+							, FORMAT(A.DocDate, 'yyyy-MM-dd') [Fecha_Contabilizacion]
+							, SUM(B.LineTotal) Monto
+							, B.Dscription Descripcion
+						FROM 
+							SBOCTRZ.DBO.OPOR A
+							JOIN SBOCTRZ.DBO.POR1 B ON A.DocEntry = B.DocEntry
+							JOIN SBOCTRZ.DBO.OCRD C ON A.CardCode = C.CardCode and C.frozenFor = 'N' 
+							--LEFT JOIN SBOCTRZ.DBO.OPRJ D ON B.Project = D.PrjCode
+							--LEFT JOIN SBOCTRZ.DBO.PCH1 E ON B.DocEntry = E.BaseEntry
+							--LEFT JOIN SBOCTRZ.DBO.OPCH F ON E.DocEntry = F.DocEntry
+							--LEFT JOIN SAP.ODRF G ON CAST(F.DocEntry AS VARCHAR(50)) = G.TransId
+							--LEFT JOIN finance.RequisicionCompra H ON G.U_FolioSolicitud = CAST(H.Id AS VARCHAR(50))
+						WHERE
+							B.AcctCode = @Cuenta
+							and MONTH(A.DocDate) = MONTH(GETDATE())
+							and YEAR(A.DocDate) = YEAR(GETDATE())
+							AND A.DocStatus = 'C'
+						GROUP BY A.DocNum, A.DocDate, B.Dscription, C.CardCode, C.CardName, B.Project
+						--UNION ALL
+						--SELECT
+						--	'Nota de crédito' [Tipo_Documento]
+						--	, '' Folio_Requisicion
+						--	, CONCAT(C.CardCode, ' - ', C.CardName) 
+						--	, CAST(B.DocNum AS VARCHAR(50)) [No Documento]
+						--	, B.Project
+						--	, FORMAT(B.DocDate, 'yyyy-MM-dd') [Fecha_Contabilizacion]
+						--	, SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Monto
+						--	, A.LineMemo
+						--FROM 
+						--	SBOCTRZ.dbo.JDT1 A
+						--	JOIN SBOCTRZ.DBO.ORPC B ON A.TransId = B.TransId 
+						--	JOIN SBOCTRZ.DBO.OCRD C ON a.ContraAct = c.CardCode and frozenFor = 'N'
+						--WHERE
+						--			Account = @Cuenta
+						--			and MONTH(RefDate) = MONTH(GETDATE())
+						--			and YEAR(RefDate) = YEAR(GETDATE())
+						--			AND A.TransType = 19
+						--GROUP BY B.DocNum, B.Project, B.DocDate, A.LineMemo, C.CardCode, C.CardName
+					) T0
+					ORDER BY Monto ASC
 
 					SET @Presupuesto = (
 						SELECT Presupuesto 
@@ -1916,19 +2059,17 @@ BEGIN
 					SET @Consumido = (
 						SELECT SUM(Total) Consumido FROM (
 							-- Requisiciones abiertas
-							SELECT SUM(A.Importe) Total
-							FROM 
-								finance.CotizacionDetalle A
-								JOIN finance.RequisicionCompra B ON A.IdRequisicion = B.ID
-							WHERE 
-								A.Autorizado = 'Y' 
-								AND B.EstatusRequisicion = 'Pendiente' 
-								AND MONTH(B.CreateDate) = 3
-								AND YEAR(B.CreateDate) = 2025
-								--and MONTH(B.CreateDate) = MONTH(GETDATE())
-								--and YEAR(B.CreateDate) = YEAR(GETDATE())
-								AND B.AcctCode = @Cuenta
-							UNION ALL
+							--SELECT SUM(A.Importe) Total
+							--FROM 
+							--	finance.CotizacionDetalle A
+							--	JOIN finance.RequisicionCompra B ON A.IdRequisicion = B.ID
+							--WHERE 
+							--	A.Autorizado = 'Y' 
+							--	AND B.EstatusRequisicion = 'Pendiente' 
+							--	AND MONTH(B.CreateDate) = MONTH(GETDATE())
+							--	AND YEAR(B.CreateDate) = YEAR(GETDATE())
+							--	AND B.AcctCode = @Cuenta
+							--UNION ALL
 							-- OC Abiertas
 							SELECT SUM(ISNULL(LineTotal, 0)) Total ---considerar impuestos
 							FROM
@@ -1936,25 +2077,45 @@ BEGIN
 								JOIN SBOCTRZ.dbo.OPOR B ON a.DocEntry = b.DocEntry
 							WHERE
 								A.AcctCode = @Cuenta
-								AND MONTH(B.DocDate) = 3
-								AND YEAR(B.DocDate) = 2025
-								and B.DocStatus = 'O'
-								--and MONTH(b.DocDate) = MONTH(GETDATE())
-								--and YEAR(b.DocDate) = YEAR(GETDATE())
-							UNION ALL
-							-- JDT1
-							SELECT SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Total
-							FROM SBOCTRZ.dbo.JDT1
-							WHERE
-								Account = @Cuenta
-								and MONTH(RefDate) = 3
-								and YEAR(RefDate) = 2025
-								--AND MONTH(B.CreateDate) = MONTH(GETDATE()) 
-								--AND YEAR(B.CreateDate) = YEAR(GETDATE())
+								AND B.DocStatus = 'C'
+								AND MONTH(B.DocDate) = MONTH(GETDATE())
+								AND YEAR(B.DocDate) = YEAR(GETDATE())
+							--UNION ALL
+							---- JDT1
+							--SELECT SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Total
+							--FROM SBOCTRZ.dbo.JDT1
+							--WHERE
+							--	Account = @Cuenta
 						) T0
 					)
 
 					SELECT @Presupuesto Presupuesto, @Consumido Consumido, @Presupuesto - @Consumido Disponible
+				END
+				--CONSULTA PARA CARGA DE EDENRED
+				IF @OPC = 15
+				BEGIN
+					SELECT 
+						placas[Placas], 
+						combustible[Combustible],
+						ivaPorcentaje[Impuesto], 
+						SUM(ieps)[IEPS],
+						SUM(iva)[IVA], 
+						SUM(totalTransaccion)[TotalTransaccion], 
+						U_Proyecto, U_TipoVehiculo + ' ' + U_Marca + ' ' + U_Submarca + ' ' + U_Placas[Vehiculo], 
+						U_Sucursal, 
+						U_Departamento
+					FROM [PJ-FLOT].dbo.transaccionesEdenRed A
+					JOIN [PJ-FLOT].dbo.CatalogoVehiculos B ON A.codeVehiculo = B.Code
+					WHERE 
+						fechaDeTransaccion BETWEEN @FechaDesde AND @FechaHasta
+					GROUP BY
+						placas, 
+						combustible,
+						ivaPorcentaje, 
+						U_Proyecto, U_TipoVehiculo + ' ' + U_Marca + ' ' + U_Submarca + ' ' + U_Placas, 
+						U_Sucursal, 
+						U_Departamento
+					ORDER BY placas	
 				END
 			END TRY
 			BEGIN CATCH
@@ -2179,7 +2340,7 @@ BEGIN
 				--ESTATUS COTIZACIÓN PRESUPUESTOS
 				ELSE IF @OPC = 7
 				BEGIN
-					UPDATE finance.RequisicionCompra SET EstatusRequisicion = @Estatus WHERE Id = @IdRequisicion 
+					UPDATE finance.RequisicionCompra SET EstatusRequisicion = @Estatus, UserPresupuesto = @Usuario WHERE Id = @IdRequisicion 
 					SELECT CONCAT('La requisición ha sido autorizada ', @Estatus) Msj
 				END
 				--BORRADORES NUEVA REQUI 2025-04-21
@@ -2261,7 +2422,7 @@ BEGIN
 					SELECT @Message = 'Alerta lanzada correctamente', @Type = 'success'
 				END
 				--DOCUMENTOS ELECTRÓNICOS RECHAZADOS
-				ELSE IF @OPC = 3
+				ELSE IF @OPC = 3 
 				BEGIN
 					SET @Asunto = 'Documentos Electrónicos(Requisición: '+ CAST(@Folio AS VARCHAR(500)) +')';
 					IF @Tipo = 'SOLICITUD OC' SET @Id = (SELECT Usuario FROM finance.SolicitudCompra WHERE Id = @Folio);
@@ -2305,6 +2466,63 @@ BEGIN
 					--	@subject = @Asunto,
 					--	@body_format = 'HTML',
 					--	@body = @MSJ
+				END
+				-- 
+				ELSE IF @OPC = 5
+				BEGIN
+					SELECT 
+						A.ID Folio
+						, CONCAT(B.AcctCode, ' - ', B.AcctName) Cuenta
+						, C.Nombre Solicita
+						, A.Motivo
+						, ISNULL(E.Correo, 'miguel.hernandez@tractozone.com.mx') CorreoResponsable
+					INTO #DT
+					FROM 
+						finance.RequisicionCompra A
+						JOIN SBOCTRZ.DBO.OACT B ON A.AcctCode = B.AcctCode
+						JOIN HNT.Usuarios C ON A.UserID = C.UserID
+						JOIN finance.Responsables_Cuentas D ON A.AcctCode = D.AcctCode
+						JOIN HNT.Usuarios E ON D.UserID = E.UserID
+					WHERE A.Id = @IdRequisicion
+
+					DECLARE InfoUser CURSOR FOR SELECT Folio, Cuenta, Solicita, Motivo, CorreoResponsable FROM #DT
+					OPEN InfoUser
+						FETCH NEXT FROM InfoUser INTO @Folio, @Cuenta, @Solicita, @Motivo, @CorreoResponsable
+						WHILE @@fetch_status = 0
+						BEGIN
+							SET @HTML = ' 
+								<p>Buen día</p>
+								<p>El folio de requisición <b style="font-size:14px;">' + CAST(@Folio AS VARCHAR(250)) + '</b> se encuentra pendiente de autorizar una cotización</p>
+								<fieldset class="border p-2">
+									<legend></legend>
+										<p><b style="font-size:14px;">Solicita: </b>' + CAST(@Solicita AS VARCHAR(250)) + '</p>
+										<p><b style="font-size:14px;">Cuenta: </b>' + CAST(@Cuenta AS VARCHAR(250)) + '</p>
+										<p><b style="font-size:14px;">Motivo: </b>' + CAST(@Motivo AS VARCHAR(250)) + '</p>
+									</legend>
+								</fieldset>
+							'
+							SET @Correo = @CorreoResponsable
+							FETCH NEXT FROM InfoUser INTO @Folio, @Cuenta, @Solicita, @Motivo, @CorreoResponsable
+						END
+					CLOSE InfoUser
+					DEALLOCATE InfoUser
+		
+					-- SE ENVÍA EL CORREO
+					DECLARE @BodyCI NVARCHAR(MAX), @MailCI VARCHAR(MAX)
+		
+					SET @BodyCI = HNT_TRZ.dbo.fu_hnt_Str_Mail('Autorización Requisición', @HTML)
+		
+					EXEC msdb.dbo.sp_send_dbmail   
+						@profile_name ='Correo Halconet',
+						--@recipients = @Correo,
+						@recipients = 'miguel.hernandez@tractozone.com.mx',
+						@subject = N'Autorización Requisición',
+						@body = @BodyCI,
+						@body_format= 'HTML',
+						@blind_copy_recipients = 'miguel.hernandez@tractozone.com.mx'
+		
+					DROP TABLE #DT
+		
 				END
 			END TRY
 			BEGIN CATCH
@@ -2351,7 +2569,7 @@ BEGIN
 				EXEC sp_executesql @QRY, @paramDefinition, @CardCode
 			END
 			--RETENCIONES 
-			ELSE IF @OPC = 2
+			IF @OPC = 2
 			BEGIN
 				SELECT 
 					Impuesto,
@@ -2395,6 +2613,22 @@ BEGIN
 						CardCode = @CardCode
 						AND A.WTCode = @WTCode
 				)T0
+			END
+			--PERMISOS NUEVOS
+			IF ISNULL(@OPC, 0) = 3
+			BEGIN
+				IF @Rol IN (1)
+				BEGIN
+					SELECT CAST(1 AS BIT)[Permiso_Crear], CAST(1 AS BIT)[Permiso_Ver], CAST(1 AS BIT)[Permiso_Editar]
+				END
+				ELSE IF @Rol IN (21) AND @Usuario IN (69)
+				BEGIN
+					SELECT CAST(1 AS BIT)[Permiso_Crear], CAST(1 AS BIT)[Permiso_Ver], CAST(1 AS BIT)[Permiso_Editar]
+				END
+				ELSE
+				BEGIN
+					SELECT CAST(0 AS BIT)[Permiso_Crear], CAST(1 AS BIT)[Permiso_Ver], CAST(0 AS BIT)[Permiso_Editar]
+				END
 			END
 		END
 		--INSERCIÓN/ACTUALIZACIÓN DE DOCUMENTOS ELECTRÓNICOS
@@ -2451,8 +2685,7 @@ BEGIN
 																VALUES(@Id, @Folio, @Identity, CAST(1 AS BIT), 'UUID con relación previa', 'A', @FolioSolicitud, CAST(0 AS bit))
 
 					SELECT @Message = 'Relación de Folio Electrónico creada correctamente', @Type = 'success';
-				END
-			END TRY
+				END			END TRY
 			BEGIN CATCH
 				SET @Error = (SELECT ERROR_MESSAGE() + ' <hr/> SP: up_finance_SolicitudOC <br/> Consulta: ' + CAST(@TipoConsulta AS VARCHAR(50)) + ' <br/> Opc: ' + CAST(@OPC AS VARCHAR(50)) AS ErrorMessage);
 				RAISERROR(@Error, 11, 1);
@@ -2479,7 +2712,7 @@ BEGIN
 					IF ISNULL(@TipoGastoCC, '') = ''
 						RAISERROR('Debes especificar un Tipo de Gasto CC de la lista desplegable', 11, 1);
 
-					IF ISNULL(@Subclasificacion, '') = '' AND EXISTS (SELECT OcrCode FROM SBOCTRZ.DBO.OOCR WHERE Active = 'Y' AND DimCode = 4 AND OcrName LIKE '%' + Substring(@Cuenta, 6, 3) + '%')
+					IF ISNULL(@Subclasificacion, '') = '' AND EXISTS (SELECT OcrName FROM SBOCTRZ.DBO.OOCR WHERE Active = 'Y' AND DimCode = 4 AND OcrName LIKE '%' + Substring(@Cuenta, 6, 3) + '%')
 					BEGIN
 						SET @Error = 'La cuenta: ' + @Cuenta + ' requiere una subclasificación'
 						RAISERROR(@Error, 11, 1);
@@ -2728,9 +2961,9 @@ BEGIN
 				SELECT 'Ok' Msj
 			END
 			ELSE IF @Opc = 3
- 			BEGIN
- 				IF ISNULL(@NumArchivos, 0) <= 0 RAISERROR('Debes agregar al menos una evidencia', 11, 1)
- 			END
+			BEGIN
+				IF ISNULL(@NumArchivos, 0) <= 0 RAISERROR('Debes agregar al menos una evidencia', 11, 1)
+			END
 		END
 	END
 END
