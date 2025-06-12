@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_sap_Documents]    Script Date: 07/05/2025 01:09:23 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_sap_Documents]    Script Date: 12/06/2025 03:48:40 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -248,6 +248,7 @@ ALTER PROCEDURE [dbo].[up_sap_Documents]
 	,@CostSum			DECIMAL(19,6) = NULL
 	,@InCustCalc		VARCHAR(1) = NULL
 	,@Reference			VARCHAR(11) = NULL
+	,@TtlExpndLC		DECIMAL(18, 2) = NULL
 
 	---------------NOTIFICACIONES------------
 	,@MSJ				 VARCHAR(MAX) = NULL
@@ -2989,7 +2990,7 @@ BEGIN
 			end
 
 			----MIENTRAS AUN ESTE COMO PENDIENTE SE ELIMINAN LINAS PARA PERMIRIR AL USUARIO MODIDIFAR SU DOCUMENTO
-			IF EXISTS(Select * From ['+@BD+'].sap.ODRF WHERE DocNum = @DocEntry AND U_Autorizado IS NULL)
+			IF EXISTS(Select * From ['+@BD+'].sap.ODRF WHERE DocNum = @DocEntry AND (U_Autorizado IS NULL OR ISNULL(U_Autorizado, '''') = ''P''))
 			BEGIN
 				DELETE FROM ['+@BD+'].sap.DRF1 WHERE DocEntry = @DocEntry
 				DELETE FROM ['+@BD+'].sap.DRF5 WHERE AbsEntry = @DocEntry
@@ -3144,7 +3145,7 @@ BEGIN
 
 	SET @QRY = CAST('
 		--PARA QUE SIEMPRE SE INSERTEN TODAS LAS LINEAS, PARA EVITAR DUPLICADOS SE ELIMINAN AL TERMIANRE DE GUARDAR EL ENCABEZADO
-		IF EXISTS(Select * From ['+@BD+'].sap.ODRF WHERE DocNum = @DocEntry AND U_Autorizado IS NULL)
+		IF EXISTS(Select * From ['+@BD+'].sap.ODRF WHERE DocNum = @DocEntry AND (U_Autorizado IS NULL OR ISNULL(U_Autorizado, '''') = ''P''))
 			SET @LineNum = -1
 
 		IF @LineNum > -1 
@@ -7557,9 +7558,9 @@ BEGIN
 	IF @TipoConsulta = 123
 	BEGIN
 		INSERT INTO [sap].[IPF1]
-           ([DocEntry], [LineNum], [BaseType], [BaseEntry])
+           ([DocEntry], [LineNum], [BaseType], [BaseEntry], [TtlExpndLC])
 		VALUES
-           (@DocEntry, @LineNum, @BaseType, @BaseEntry)
+           (@DocEntry, @LineNum, @BaseType, @BaseEntry, @TtlExpndLC)
 	END
 
 	--INSERTA BORRADOR PARA PRECIOS DE ENTREGA EN SAP(COSTOS)
