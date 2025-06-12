@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_sap_Documents]    Script Date: 12/06/2025 03:48:40 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_sap_Documents]    Script Date: 12/06/2025 03:49:46 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -259,8 +259,6 @@ ALTER PROCEDURE [dbo].[up_sap_Documents]
 	,@MotivoText		 VARCHAR(250) = NULL 
 	,@Folio				 INT = NULL
 	,@NombreUsuario		 VARCHAR(250) = NULL
-	,@PayNoDoc			 VARCHAR(15) = NULL
-	,@CounterRef		 VARCHAR(50) = NULL
 AS
 BEGIN
 	DECLARE @QRY  NVARCHAR(MAX)
@@ -2527,17 +2525,48 @@ BEGIN
 	end
 	IF @TipoConsulta = 41 --consultar cliente descuento
 	BEGIN
-		select id,a.Cardcode,b.CardName,Desde,Hasta ,Descuento,'Eliminar' Eliminar
-		from sales.ClientesDescuento a
-		JOIN SBOCTRZ.dbo.OCRD b on a.Cardcode collate database_default = b.CardCode
+		--select id,a.Cardcode,b.CardName,Desde,Hasta ,Descuento,'Eliminar' Eliminar
+		--	from sales.ClientesDescuento a
+		--JOIN SBOCTRZ.dbo.OCRD b on a.Cardcode collate database_default = b.CardCode
+		select 
+			id
+			, A.Cardcode [Cliente]
+			, B.CardName [Nombre]
+			, FORMAT(Desde, 'yyyy-MM-dd') [Desde]
+			, FORMAT(Hasta, 'yyyy-MM-dd') [Hasta]
+			, Descuento
+			--, 'Eliminar' Eliminar
+		from 
+			sales.ClientesDescuento A
+			JOIN SBOCTRZ.dbo.OCRD  B on a.Cardcode collate database_default = b.CardCode
+		ORDER BY id DESC
 	end
 	if @TipoConsulta = 42 --guardar cliente descuento
 	BEGIN
-		if not exists (select * from sales.ClientesDescuento where Cardcode = @CardCode)
-			insert into sales.ClientesDescuento(Cardcode,Desde,Hasta,Descuento,fecha) 
-			values (@CardCode,@Desde,@Hasta,@Descuento,getdate())
-		else 
-			update sales.ClientesDescuento set Descuento = @Descuento,Desde=@Desde,Hasta=@Hasta where Cardcode = @CardCode
+		IF @Opc = 1 
+		BEGIN
+			IF NOT EXISTS (select * from sales.ClientesDescuento WHERE Cardcode = @CardCode)
+			BEGIN
+				INSERT INTO sales.ClientesDescuento(Cardcode, Desde, Hasta, Descuento, fecha) 
+				VALUES (@CardCode, @Desde, @Hasta, @Descuento, GETDATE())
+				SELECT 'Se registro con exito' Mensaje, 'success' Tipo
+			END
+			ELSE 
+			BEGIN
+				SELECT 'Ya existe el registro del cliente' Mensaje, 'error' Tipo
+			END
+		END
+
+		IF @Opc = 2
+		BEGIN
+			UPDATE sales.ClientesDescuento SET Descuento = @Descuento, Desde= @Desde, Hasta = @Hasta WHERE Cardcode = @CardCode
+			SELECT 'Actualizado' Mensaje, 'success' Tipo
+		END
+		--if not exists (select * from sales.ClientesDescuento where Cardcode = @CardCode)
+		--	insert into sales.ClientesDescuento(Cardcode,Desde,Hasta,Descuento,fecha) 
+		--	values (@CardCode,@Desde,@Hasta,@Descuento,getdate())
+		--else 
+		--	update sales.ClientesDescuento set Descuento = @Descuento,Desde=@Desde,Hasta=@Hasta where Cardcode = @CardCode
 	end
 	IF @TipoConsulta = 43 --eliminar cliente descuento
 	BEGIN
@@ -3882,10 +3911,7 @@ BEGIN
 			END
 			ELSE IF @sType = 'BorradorHNT'
 			BEGIN
-				if exists (SELECT * FROM SAP.OVPM WHERE DOCNUM = @DocEntry and DocType <> 'A') 
 				SET @QRY = ' SELECT A.* FROM sap.VPM2 A WHERE DocNum = @DocEntry'
-				ELSE 
-				SET @QRY = ' SELECT A.* FROM sap.VPM4 A WHERE DocNum = @DocEntry'
 				SET @PARAMETROS = '@DocEntry INT'
 			END
 		END
@@ -7440,9 +7466,9 @@ BEGIN
 			SELECT @DocEntry = ISNULL(MAX(DocNum), 0) + 1 FROM sap.OVPM
 			
 			INSERT INTO sap.OVPM
-			(DocEntry, DocNum, DocDate, CardCode, CardName, DocType, PayNoDoc, Address, CounterRef, TrsfrAcct, TrsfrSum, NoDocSum, TrsfrDate, TrsfrRef, DocCurr, JrnlMemo, U_Metpago, U_FormaPagoTes, FolioHalcon, U_Autorizado, CreateDate)
+			(DocEntry, DocNum, DocDate, CardCode, TrsfrAcct, TrsfrSum, TrsfrDate, TrsfrRef, DocCurr, JrnlMemo, U_Metpago, U_FormaPagoTes, FolioHalcon, U_Autorizado, CreateDate)
 			VALUES
-			(@DocEntry, @DocEntry, @DocDate, @CardCode, @CardName, @DocType, @PayNoDoc, @Address, @CounterRef, @TrsfrAcct, @TrsfrSum,@TrsfrSum, @TrsfrDate, @TrsfrRef, @DocCurr, @JrnlMemo, @U_MetPago, @FormaPagoTes, @U_FolioHalcon, 'P', GetDate())
+			(@DocEntry, @DocEntry, @DocDate, @CardCode, @TrsfrAcct, @TrsfrSum, @TrsfrDate, @TrsfrRef, @DocCurr, @JrnlMemo, @U_MetPago, @FormaPagoTes, @U_FolioHalcon, 'P', GetDate())
 
 			select top 1 DocNum from sap.OVPM ORDER BY DocNum desc
 		END
@@ -7627,19 +7653,6 @@ BEGIN
 			SET @DocnumSAP = NULL
 
 		UPDATE sap.[OMRV] SET TransId = @DocNumSAP, U_ActMessage = @Comments WHERE DocEntry = @DocEntry
-	END
-
-	--INSERTA BORRADOR DE DEVOLUCIONES EN SAP PARA PROVEEDORES(DETALLE)
-	IF @TipoConsulta = 130
-	BEGIN
-		SET @LineNum = ISNULL((SELECT MAX(LineId) + 1 FROM sap.VPM4 WHERE DocNum = @DocNum), 0)
-
-		INSERT INTO sap.VPM4
-		([DocNum],[LineId], [AcctCode], [SumApplied],[AppliedFC], [AppliedSys], [Descrip], [ObjType])
-		VALUES
-		(@DocNum, @LineNum, @AcctCode, @SumApplied, @AppliedFC, @SumApplied, @Comments, @ObjType)
-
-		SELECT @LineNum
 	END
 
 	--IF @TipoConsulta = 99999 --Consulta que va a reemplazar la 103
