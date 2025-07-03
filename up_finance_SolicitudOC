@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 11/06/2025 04:06:19 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 02/07/2025 05:59:49 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -335,7 +335,7 @@ BEGIN
 				-- RESPONSABLE DE LA CUENTA
  				IF EXISTS(SELECT AcctCode FROM finance.VW_Requisiciones_Responsables_Cuentas WHERE USERID = @Usuario and AcctCode = @Cuenta) 
 					SET @PermisoAut = 1 ELSE SET @PermisoAut = 0
- 				-- Usuario con rol de finanzas SRAdd commentMore actions
+ 				-- Usuario con rol de finanzas
 				IF @Rol IN (19, 1) SET @Finanzas = 1 ELSE SET @Finanzas = 0
  				-- ADMINISTRADOR
  				--IF @Rol IN (1)  SELECT 0 Administrador, 0 Cta, 0 Autorizacion, 0 Presupuesto 
@@ -392,26 +392,39 @@ BEGIN
 							SELECT  @Codigo_Puesto = Codigo_Puesto
 							FROM PJ_RH.dbo.VW_EMPLEADOS 
 							WHERE cvetra = ''' + @RHNumEmp + ''' 
-	
-							SELECT CAST(0 AS VARCHAR(10))[cvetra_empleado], ''TODOS''[empleado], ''TODOS''[nombre_puesto] 
-							UNION ALL
-							SELECT CVETRA[cvetra_empleado], Nombre[empleado], Nombre_Puesto[nombre_puesto]
-							FROM PJ_RH.DBO.VW_EMPLEADOS 
-							WHERE 
-								Estatus = ''A''
-						'
+
+							SELECT 
+								[cvetra_empleado], [empleado], [nombre_puesto]
+							FROM(
+								SELECT CAST(0 AS VARCHAR(10))[cvetra_empleado], ''TODOS''[empleado], ''TODOS''[nombre_puesto], ''TODOS''[Codigo_Puesto]
+								UNION ALL
+								SELECT CVETRA[cvetra_empleado], Nombre[empleado], Nombre_Puesto[nombre_puesto], Codigo_Puesto
+								FROM PJ_RH.DBO.VW_EMPLEADOS 
+								WHERE 
+									Estatus = ''A''
+								UNION ALL
+								SELECT CVETRA[cvetra_empleado], Nombre[empleado], Nombre_Puesto[nombre_puesto], Codigo_Puesto
+								FROM PJ_RH.DBO.VW_EMPLEADOS 
+								WHERE 
+									Fecha_Baja BETWEEN DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) - 1, 0) AND EOMONTH(GETDATE())
+							)T0
+							WHERE 1 = 1'
 						IF @Rol <> 20
 						BEGIN
 							SET @Qry += '
 								AND Codigo_Puesto IN (
-									SELECT Codigo_Puesto
+									(SELECT Codigo_Puesto
 									FROM PJ_RH.dbo.VW_PLANTILLA 
 									WHERE Codigo_Puesto = @Codigo_Puesto AND Estatus <> ''B''
 									UNION ALL
 									SELECT Codigo_Puesto
 									FROM PJ_RH.dbo.VW_PLANTILLA 
-									WHERE SUBSTRING(AutIncidencias, 4, 50) = @Codigo_Puesto AND Estatus <> ''B''
-								)
+									WHERE SUBSTRING(AutIncidencias, 4, 50) = @Codigo_Puesto AND Estatus = ''A''
+									UNION ALL
+									SELECT Codigo_Puesto
+									FROM PJ_RH.DBO.VW_EMPLEADOS 
+									WHERE Codigo_Puesto = @Codigo_Puesto AND Fecha_Baja BETWEEN DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) - 1, 0) AND EOMONTH(GETDATE())
+								), ''TODOS'')
 							'
 						END 
 
@@ -894,11 +907,12 @@ BEGIN
 						esto cambiara el estatus de la solicitud a "Cancelado".
 					'
 				END
-				--Cuentas sin validacionesAdd commentMore actions
+				--Cuentas sin validaciones
 				ELSE IF ISNULL(@OPC, 1) = 23
 				BEGIN
 					IF @Cuenta IN (
-						'6100-037-000'
+						'6100-058-000',
+						'6100-094-000'
 					) SELECT CAST(0 AS BIT) Documentos
 					ELSE SELECT CAST(1 AS BIT) Documentos
 				END
@@ -1081,7 +1095,7 @@ BEGIN
 						INSERT INTO finance.RequisicionCompra 
 							(Id, Motivo, AcctCode, EstatusRequisicion, UserID, CreateDate,  Updatedate, EstatusDocumentacion, dateCuenta, UserCuenta, dateAutorizacion, UserAutorizacion, datePresupuesto, UserPresupuesto, RecibeFactura, CorreoEnviado)
 						VALUES
-							(@Id, @Motivo, @Cuenta, @Estatus, @Usuario, GETDATE(), GETDATE(),  'No validado', GETDATE(), @Usuario, NULL, NULL, NULL, NULL, @RecibeFactura, 'N')
+							(@Id, @Motivo, @Cuenta, @Estatus, @Usuario, GETDATE(), GETDATE(),  '', GETDATE(), @Usuario, NULL, NULL, NULL, NULL, @RecibeFactura, 'N')
 						SELECT 'Solicitud almacenada' Msj, @Id Id
 					END
 					ELSE BEGIN
@@ -1107,10 +1121,18 @@ BEGIN
 						UPDATE finance.CotizacionDetalle SET Autorizado = @Autorizado WHERE IdRequisicion = @IdRequisicion AND LineNum = @LineNum
 
 						SET @TotalRequisicion = (SELECT Importe FROM finance.CotizacionDetalle WHERE IdRequisicion = @IdRequisicion AND Autorizado = 'Y')
-						SET @PresupuestoUtilizado = (SELECT ISNULL(SUM(Debit - Credit), 0) + @TotalRequisicion  FROM SBOCTRZ.dbo.JDT1 WHERE Account = @Cuenta AND MONTH(RefDate) = MONTH(GETDATE()) AND YEAR(RefDate) = YEAR(GETDATE()))
+						SET @PresupuestoUtilizado = (SELECT SUM(ISNULL(Total, 0)) + @TotalRequisicion FROM (
+							SELECT ISNULL(SUM(LineTotal), 0) Total ---considerar impuestos
+							FROM
+								SBOCTRZ.dbo.POR1 A
+								JOIN SBOCTRZ.dbo.OPOR B ON a.DocEntry = b.DocEntry
+							WHERE
+								A.AcctCode = @Cuenta
+								AND MONTH(A.DocDate) = MONTH(GETDATE())
+								AND YEAR(A.DocDate) = YEAR(GETDATE())
+						) T0)
 						SET @PresupuestoCuenta = (SELECT Presupuesto  FROM finance.Gastos_Presupuesto WHERE AcctCode = @Cuenta AND U_Month = MONTH(GETDATE()) AND U_Year = YEAR(GETDATE()))
-						IF (@PresupuestoUtilizado + 1 <= @PresupuestoUtilizado) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
-						--IF (@PresupuestoUtilizado <=  @PresupuestoCuenta) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
+						IF (@PresupuestoUtilizado <=  @PresupuestoCuenta) UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Autorizado' WHERE Id = @IdRequisicion
 						ELSE UPDATE finance.RequisicionCompra SET EstatusRequisicion = 'Pendiente' WHERE Id = @IdRequisicion
 
 						UPDATE finance.RequisicionCompra SET 
@@ -1259,7 +1281,10 @@ BEGIN
 									WHEN A.EstatusRequisicion = ''Pendiente'' THEN ''Autorización presupuesto''
 									ELSE A.EstatusRequisicion 
 									END [Estatus Solicitud]
-								, ISNULL(A.EstatusDocumentacion, ''Sin Carga Previa'') [Estatus Documentos]
+								, CASE 
+									WHEN ISNULL(A.EstatusDocumentacion, '''') = '''' THEN ''Sin Carga Previa'' 
+									ELSE A.EstatusDocumentacion 
+								  END [Estatus Documentos]
 								, Motivo
 								--, 0 [Activo_Fijo]
 								, E.TransId [Orden_de_Compra]
@@ -1305,7 +1330,13 @@ BEGIN
 					' END					
 					 
 					IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT) BEGIN SET @QRY += ' 
-								AND B.RH_NumEmpleado COLLATE DATABASE_DEFAULT IN (SELECT RHNum FROM #Employees)
+								AND B.RH_NumEmpleado COLLATE DATABASE_DEFAULT IN (
+									SELECT RHNum FROM #Employees
+									UNION ALL
+									SELECT  cvetra
+									FROM PJ_RH.dbo.VW_EMPLEADOS 
+									WHERE Fecha_Baja BETWEEN DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE()) - 1, 0) AND EOMONTH(GETDATE())
+								)
 					' END
 					
 					--SE AGREGAN SOLICITUDES DE CUENTAS CONTABLES SEGUN LA ASIGNACION DE RESPONSABLES					
@@ -1875,7 +1906,7 @@ BEGIN
 							, CASE 
 								CASE 
 									WHEN C.ObjType = 22 THEN H7.DocStatus
-									WHEN C.ObjType = 18 THEN H8.DocStatus
+									WHEN C.ObjType = 18 THEN H9.DocStatus
 								END 
 								WHEN ''O'' THEN ''Abierto'' 
 								WHEN ''C'' THEN ''Cerrado'' 
@@ -1928,7 +1959,7 @@ BEGIN
 							CAST(c.DocDate AS DATE) BETWEEN @Desde AND @Hasta 
 							AND C.ObjType IN (18, 22) 
 							AND D.UserID in (' + @UserIds + ')
-						GROUP BY C.ObjType, C.DocType, c.DocEntry, F.CardCode, F.CardName, H7.DocNum, H9.DocNum, H7.DocStatus, h8.DocStatus, C.U_EdocNum, C.DocTotal, h9.DocEntry, C.TransId, D.Nombre, C.U_Autorizado, C.U_OC, C.Comments, C.TaxInvNo, C.PickRmrk, SOC.Estatus, H7.Canceled, J.DocNum, SOC.Id, J.DocDate, J.Canceled, J.DocNum
+						GROUP BY C.ObjType, C.DocType, c.DocEntry, F.CardCode, F.CardName, H7.DocNum, H9.DocNum, H7.DocStatus, h9.DocStatus, C.U_EdocNum, C.DocTotal, h9.DocEntry, C.TransId, D.Nombre, C.U_Autorizado, C.U_OC, C.Comments, C.TaxInvNo, C.PickRmrk, SOC.Estatus, H7.Canceled, J.DocNum, SOC.Id, J.DocDate, J.Canceled, J.DocNum
 							, J.U_Edocnum, H7.U_EdocNum, K.dFechaPago, L.Code, L.Name, M.Code, M.Name
 						ORDER BY C.DocEntry DESC
 					'
@@ -2121,9 +2152,8 @@ BEGIN
 							--LEFT JOIN finance.RequisicionCompra H ON G.U_FolioSolicitud = CAST(H.Id AS VARCHAR(50))
 						WHERE
 							B.AcctCode = @Cuenta
-							and MONTH(A.DocDate) = MONTH(GETDATE())
-							and YEAR(A.DocDate) = YEAR(GETDATE())
-							AND A.DocStatus = 'C'
+							and MONTH(B.DocDate) = MONTH(GETDATE())
+							and YEAR(B.DocDate) = YEAR(GETDATE())
 						GROUP BY A.DocNum, A.DocDate, B.Dscription, C.CardCode, C.CardName, B.Project
 						--UNION ALL
 						--SELECT
@@ -2158,35 +2188,15 @@ BEGIN
 					)
 
 					SET @Consumido = (
-						SELECT SUM(ISNULL(Total, 0)) Consumido FROM (
-							-- Requisiciones abiertas
-							--SELECT SUM(A.Importe) Total
-							--FROM 
-							--	finance.CotizacionDetalle A
-							--	JOIN finance.RequisicionCompra B ON A.IdRequisicion = B.ID
-							--WHERE 
-							--	A.Autorizado = 'Y' 
-							--	AND B.EstatusRequisicion = 'Pendiente' 
-							--	AND MONTH(B.CreateDate) = MONTH(GETDATE())
-							--	AND YEAR(B.CreateDate) = YEAR(GETDATE())
-							--	AND B.AcctCode = @Cuenta
-							--UNION ALL
-							-- OC Abiertas
-							SELECT SUM(ISNULL(LineTotal, 0)) Total ---considerar impuestos
+						SELECT SUM(ISNULL(Total, 0)) FROM (
+							SELECT ISNULL(SUM(LineTotal), 0) Total ---considerar impuestos
 							FROM
 								SBOCTRZ.dbo.POR1 A
 								JOIN SBOCTRZ.dbo.OPOR B ON a.DocEntry = b.DocEntry
 							WHERE
 								A.AcctCode = @Cuenta
-								AND B.DocStatus = 'C'
-								AND MONTH(B.DocDate) = MONTH(GETDATE())
-								AND YEAR(B.DocDate) = YEAR(GETDATE())
-							--UNION ALL
-							---- JDT1
-							--SELECT SUM(ISNULL(Debit, 0) - ISNULL(Credit, 0)) Total
-							--FROM SBOCTRZ.dbo.JDT1
-							--WHERE
-							--	Account = @Cuenta
+								AND MONTH(A.DocDate) = MONTH(GETDATE())
+								AND YEAR(A.DocDate) = YEAR(GETDATE())
 						) T0
 					)
 
@@ -2773,7 +2783,7 @@ BEGIN
 						@subject = N'Autorización Requisición',
 						@body = @BodyCI,
 						@body_format= 'HTML',
-						@blind_copy_recipients = 'miguel.hernandez@tractozone.com.mx'
+						@blind_copy_recipients = ''
 		
 					DROP TABLE #DT
 		
@@ -2879,7 +2889,7 @@ BEGIN
 				BEGIN
 					SELECT CAST(1 AS BIT)[Permiso_Crear], CAST(1 AS BIT)[Permiso_Ver], CAST(1 AS BIT)[Permiso_Editar]
 				END
-				IF @Rol IN (20)--CRISTINA PAREDES DOMINGUEZ, ESPERANZA BAUTISTA
+				IF @Rol IN (20, 19)--CRISTINA PAREDES DOMINGUEZ, ESPERANZA BAUTISTA
 				BEGIN
 					SELECT CAST(1 AS BIT)[Permiso_Crear], CAST(1 AS BIT)[Permiso_Ver], CAST(1 AS BIT)[Permiso_Editar]
 				END
