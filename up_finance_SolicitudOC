@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 11/07/2025 03:24:55 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_SolicitudOC]    Script Date: 10/07/2025 03:12:20 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1145,8 +1145,6 @@ BEGIN
 									A.AcctCode = @Cuenta
 									AND MONTH(A.DocDate) = MONTH(GETDATE())
 									AND YEAR(A.DocDate) = YEAR(GETDATE())
-									AND ISNULL(B.Indicator, '') <> 'CF'
-									AND B.Canceled <> 'Y'
 							) T0
 						)
 
@@ -1179,8 +1177,6 @@ BEGIN
 								A.AcctCode = @Cuenta
 								AND MONTH(A.DocDate) = MONTH(GETDATE()) - 1 -- cambiar a 
 								AND YEAR(A.DocDate) = YEAR(GETDATE())
-								AND ISNULL(B.Indicator, '') <> 'CF'
-								AND B.Canceled <> 'Y'
 						) T0 
 					)
 
@@ -1326,6 +1322,39 @@ BEGIN
 					UPDATE finance.RequisicionCompra SET EstatusDocumentacion = 'Validado' WHERE Id = @IdRequisicion
 					SELECT 'Documentos(s) guardado(s) Correctamente' Msj
 				END
+				ELSE IF @OPC = 14
+				BEGIN
+					-- Cancela la OC en SAP cuando no tiene factura
+					IF NOT EXISTS (
+						SELECT C.DocEntry
+						FROM 
+							SBOCTRZ.dbo.OPOR A 
+							JOIN SBOCTRZ.dbo.PCH1 B ON A.DocEntry = B.BaseEntry
+							JOIN SBOCTRZ.dbo.OPCH C ON B.DocEntry = C.DocEntry
+						WHERE  A.DocNum = @DocNum
+					) BEGIN 
+						SET @DocEntry = (SELECT DocEntry FROM SBOCTRZ.dbo.OPOR WHERE DocNum = @DocNum)
+						INSERT INTO sap.DocumentCancelaciones VALUES (@DocEntry, @DocNum, 22, GETDATE(), GETDATE(), 'Generado por Halconet', @Usuario, 'P')
+					END
+
+					-- Si tiene factura y está cancelada por el indicador de finzanza (CF)
+					-- actualizará la OC con el mismo valor en el campo "Indicator"
+					ELSE IF EXISTS (
+						SELECT C.INDICATOR, C.*
+						FROM 
+							SBOCTRZ.dbo.OPOR A 
+							JOIN SBOCTRZ.dbo.PCH1 B ON A.DocEntry = B.BaseEntry
+							JOIN SBOCTRZ.dbo.OPCH C ON B.DocEntry = C.DocEntry
+						WHERE  A.DocNum = @DocNum AND C.Indicator = 'CF'
+					)
+					BEGIN 
+						UPDATE SBOCTRZ.dbo.OPOR SET Indicator = 'CF' WHERE DocNum = @DocNum
+					END
+					ELSE 
+					BEGIN
+						RAISERROR('Para cancelar la OC se necesita cancelar primero la factura de proveedor', 11, 1)
+					END
+				END
 			END TRY
 			BEGIN CATCH
 				SET @Error = (SELECT ERROR_MESSAGE() + ' <hr/> SP: up_finance_SolicitudOC <br/> Consulta: ' + CAST(@TipoConsulta AS VARCHAR(50)) + ' <br/> Opc: ' + CAST(@OPC AS VARCHAR(50)) AS ErrorMessage);
@@ -1389,11 +1418,10 @@ BEGIN
 								LEFT JOIN SBOCTRZ.dbo.OPOR F ON E.TransId = F.DocEntry AND E.ObjType = 22 and E.DocType = ''S''
 								LEFT JOIN SBOCTRZ.DBO.POR1 G ON F.DocEntry = G.DocEntry
 								LEFT JOIN SBOCTRZ.DBO.PCH1 H ON H.BaseEntry = G.DocEntry AND H.BaseLine = G.LineNum AND H.BaseType = G.ObjType
-								LEFT JOIN SBOCTRZ.DBO.OPCH I ON H.DocEntry = I.DocEntry 
+								LEFT JOIN SBOCTRZ.DBO.OPCH I ON H.DocEntry = I.DocEntry  AND ISNULL(I.Indicator, '''') <> ''CF''
 								LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ J ON J.UUID COLLATE DATABASE_DEFAULT = CASE WHEN I.DocNum  IS NOT NULL THEN I.U_EdocNum ELSE F.U_EdocNum END AND J.Extension = ''.xml''
 							WHERE 
 								CAST(A.CreateDate AS DATE) BETWEEN @Desde AND @Hasta
-								AND ISNULL(I.Indicator, '''') <> ''CF''
 					'
 					IF ISNULL(@PermisoVis, 0) = CAST(0 AS BIT)
 					BEGIN
@@ -1747,8 +1775,8 @@ BEGIN
 							JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ D ON D.nIdArchivo = B.IdXml 
 							JOIN finance.Viaticos_Destinos E ON A.IdViatico = E.IdViatico and E.LineNum = 1
 							JOIN hnt.Usuarios G ON G.UserID = A.UserId
-							LEFT JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado
-							LEFT JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> ''B''
+							JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado
+							JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> ''B''
 							LEFT JOIN SBOCTRZ.dbo.OCRD J ON D.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS = J.LicTradNum and J.CardType = ''S'' AND J.CardName <> ''INACTIVO'' AND J.FROZENFOR = ''N''
 							LEFT JOIN SBOCTRZ.dbo.OPRJ K ON K.PrjCode COLLATE SQL_Latin1_General_CP1_CI_AS = I.Proyecto
 							LEFT JOIN PJ_RH.dbo.Tbl_Areas L ON SUBSTRING(K.U_CodPuesto, 5,2) COLLATE SQL_Latin1_General_CP1_CI_AS = L.Cod_Area OR K.U_Area  COLLATE SQL_Latin1_General_CP1_CI_AS = L.Area
@@ -1756,9 +1784,9 @@ BEGIN
 							LEFT JOIN SBOCTRZ.DBO.OPCH N ON N.DocNum = D.sFacturaSAP
 						WHERE
 							FORMAT(D.dFechaPago, ''yyyy-MM-dd'') BETWEEN @Desde AND @Hasta
-							AND B.Id_Borrador IS NULL
-							AND ISNULL(D.sOCSAP, '''') = '''' 
-							AND ISNULL(D.sFacturaSAP, '''') = '''' 
+							--AND B.Id_Borrador IS NULL
+							--AND ISNULL(D.sOCSAP, '''') = '''' 
+							--AND ISNULL(D.sFacturaSAP, '''') = '''' 
 							AND ISNULL(D.UUID, '''') <> ''''
 							AND CASE 
 								WHEN B.Estado = ''Aceptado'' THEN B.Estado 
@@ -1766,7 +1794,6 @@ BEGIN
 							END = ''Aceptado''
 							AND A.CodSucursal IN (' + @Sucursales + ') -- Modificar esta marranada (up_finance_ComprobacionViaticos) @TipoConsulta 23
 							AND L.CVECIA = ''007''
-							AND I.Proyecto IS NOT NULL
 					'
 					IF ISNULL(@TipoPago, 0) <> 0 BEGIN SET @QRY +='
 							AND C.TipoDeposito IN (@TipoPago)
@@ -1831,68 +1858,68 @@ BEGIN
 						WHEN C.RUBRO LIKE '%TAXI%'or C.RUBRO like '%TRANSPORTE%' THEN 'VI_TAXI'
 						ELSE ''
 					  END [Subclasificacion]
-					FROM
-						finance.Viaticos_Header A
-						JOIN finance.Viaticos_Xml B ON A.IdViatico = B.IdViatico
-						JOIN finance.Viaticos_Totales C ON C.IdViatico = B.IdViatico AND C.Rubro = B.Rubro
-						JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ D ON D.nIdArchivo = B.IdXml 
-						JOIN finance.Viaticos_Destinos E ON A.IdViatico = E.IdViatico and E.LineNum = 1
-						JOIN hnt.Usuarios G ON G.UserID = A.UserId
-						left JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado --AND H.Estatus = 'A'
-						left JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> 'B'
-						LEFT JOIN SBOCTRZ.dbo.OCRD J ON D.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS = J.LicTradNum and J.CardType = 'S' AND J.FROZENFOR = 'N'
-						LEFT JOIN SBOCTRZ.dbo.OPRJ K ON K.PrjCode COLLATE SQL_Latin1_General_CP1_CI_AS = I.Proyecto
-						LEFT JOIN PJ_RH.dbo.Tbl_Areas L ON SUBSTRING(K.U_CodPuesto, 5,2) COLLATE SQL_Latin1_General_CP1_CI_AS = L.Cod_Area OR K.U_Area  COLLATE SQL_Latin1_General_CP1_CI_AS = L.Area
-						LEFT JOIN SBOCTRZ.DBO.OOCR M ON L.Area COLLATE SQL_Latin1_General_CP850_CI_AS = m.OcrName
-					WHERE D.UUID = @UUID
-						and D.SubtotalGravado > 0
-						AND I.PROYECTO IS NOT NULL
-					GROUP BY A.IdViatico, D.nIdArchivo, A.Nombre, A.Sucursal, C.TipoDeposito, D.dFechaPago, D.dAlta, A.FechaSolicitud, D.extension , A.FechaSolicitud, D.UUID, J.CardCode, J.Currency, J.CardName, D.UsoCFDI, D.Subtotal, D.IVA08, D.IVA16, D.RetenidoISR, D.RetenidoIVA, D.dTotal, D.sRegimenFiscal, D.FormaPago, D.MetodoPago, I.Proyecto, I.NR, I.TipoGasto, D.EXTENSION, B.Rubro, A.IdViatico, A.Nombre, E.Motivo, E.Destino, D.Conceptos, D.sOCSAP, D.sFacturaSAP, D.sPagoSAP, I.Codigo_Puesto, L.TipoGasto , M.OcrCode, A.CodSucursal, D.SubtotalExcento, D.SubtotalGravado, C.RUBRO, D.IEPS
-					UNION ALL 
-					SELECT 
-						-1 LineNum
-						, ISNULL(J.Currency, '$') Currency
-						, ISNULL(D.SubtotalExcento, 0) Subtotal
-						, I.Proyecto
-						, I.NR [Norma_de_Reparto]
-						, CASE	
-							WHEN I.TipoGasto = 'Administrativo' AND D.EXTENSION = '.XML' THEN '6100-055-000'
-							WHEN I.TipoGasto IN ('Ventas', 'Operativo') AND D.EXTENSION = '.XML' THEN '6100-055-000'
-							WHEN I.TipoGasto = 'Administrativo' AND D.EXTENSION = '.PDF' THEN '6100-069-000'
-							WHEN I.TipoGasto IN ('Ventas', 'Operativo') AND D.EXTENSION = '.PDF' THEN '6100-069-000'
-							END [Cuenta_Contable]
-						, 'IVAEX' VatGroup
-						, B.Rubro + ' / ' + CAST(A.IdViatico AS VARCHAR(MAX)) + ' / ' + A.Nombre + ' / ' + E.Motivo + ' / ' + E.Destino + ' / ' + D.Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS Concepto
-						, CASE 
-								WHEN L.TipoGasto = 'Operativo' THEN 'VENTA'
-								WHEN L.TipoGasto = 'Administrativo' THEN 'ADMON'
-								ELSE ''
-							END TipoGastoCC
-						, ISNULL(M.OcrCode, '') Departamento
-						, CASE 
-							WHEN C.RUBRO = 'ALIMENTOS' THEN 'VI_ALIM'
-							WHEN C.RUBRO = 'HOSPEDAJE' THEN 'VI_HOSP'
-							WHEN C.RUBRO LIKE '%TAXI%'or C.RUBRO like '%TRANSPORTE%' THEN 'VI_TAXI'
+				FROM
+					finance.Viaticos_Header A
+					JOIN finance.Viaticos_Xml B ON A.IdViatico = B.IdViatico
+					JOIN finance.Viaticos_Totales C ON C.IdViatico = B.IdViatico AND C.Rubro = B.Rubro
+					JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ D ON D.nIdArchivo = B.IdXml 
+					JOIN finance.Viaticos_Destinos E ON A.IdViatico = E.IdViatico and E.LineNum = 1
+					JOIN hnt.Usuarios G ON G.UserID = A.UserId
+					left JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado --AND H.Estatus = 'A'
+					left JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> 'B'
+					LEFT JOIN SBOCTRZ.dbo.OCRD J ON D.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS = J.LicTradNum and J.CardType = 'S' AND J.FROZENFOR = 'N'
+					LEFT JOIN SBOCTRZ.dbo.OPRJ K ON K.PrjCode COLLATE SQL_Latin1_General_CP1_CI_AS = I.Proyecto
+					LEFT JOIN PJ_RH.dbo.Tbl_Areas L ON SUBSTRING(K.U_CodPuesto, 5,2) COLLATE SQL_Latin1_General_CP1_CI_AS = L.Cod_Area OR K.U_Area  COLLATE SQL_Latin1_General_CP1_CI_AS = L.Area
+					LEFT JOIN SBOCTRZ.DBO.OOCR M ON L.Area COLLATE SQL_Latin1_General_CP850_CI_AS = m.OcrName
+				WHERE D.UUID = @UUID
+					and D.SubtotalGravado > 0
+					AND I.PROYECTO IS NOT NULL
+				GROUP BY A.IdViatico, D.nIdArchivo, A.Nombre, A.Sucursal, C.TipoDeposito, D.dFechaPago, D.dAlta, A.FechaSolicitud, D.extension , A.FechaSolicitud, D.UUID, J.CardCode, J.Currency, J.CardName, D.UsoCFDI, D.Subtotal, D.IVA08, D.IVA16, D.RetenidoISR, D.RetenidoIVA, D.dTotal, D.sRegimenFiscal, D.FormaPago, D.MetodoPago, I.Proyecto, I.NR, I.TipoGasto, D.EXTENSION, B.Rubro, A.IdViatico, A.Nombre, E.Motivo, E.Destino, D.Conceptos, D.sOCSAP, D.sFacturaSAP, D.sPagoSAP, I.Codigo_Puesto, L.TipoGasto , M.OcrCode, A.CodSucursal, D.SubtotalExcento, D.SubtotalGravado, C.RUBRO, D.IEPS
+				UNION ALL 
+				SELECT 
+					-1 LineNum
+					, ISNULL(J.Currency, '$') Currency
+					, ISNULL(D.SubtotalExcento, 0) Subtotal
+					, I.Proyecto
+					, I.NR [Norma_de_Reparto]
+					, CASE	
+						WHEN I.TipoGasto = 'Administrativo' AND D.EXTENSION = '.XML' THEN '6100-055-000'
+						WHEN I.TipoGasto IN ('Ventas', 'Operativo') AND D.EXTENSION = '.XML' THEN '6100-055-000'
+						WHEN I.TipoGasto = 'Administrativo' AND D.EXTENSION = '.PDF' THEN '6100-069-000'
+						WHEN I.TipoGasto IN ('Ventas', 'Operativo') AND D.EXTENSION = '.PDF' THEN '6100-069-000'
+						END [Cuenta_Contable]
+					, 'IVAEX' VatGroup
+					, B.Rubro + ' / ' + CAST(A.IdViatico AS VARCHAR(MAX)) + ' / ' + A.Nombre + ' / ' + E.Motivo + ' / ' + E.Destino + ' / ' + D.Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS Concepto
+					, CASE 
+							WHEN L.TipoGasto = 'Operativo' THEN 'VENTA'
+							WHEN L.TipoGasto = 'Administrativo' THEN 'ADMON'
 							ELSE ''
-							END [Subclasificacion]
-					FROM
-						finance.Viaticos_Header A
-						JOIN finance.Viaticos_Xml B ON A.IdViatico = B.IdViatico
-						JOIN finance.Viaticos_Totales C ON C.IdViatico = B.IdViatico AND C.Rubro = B.Rubro
-						JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ D ON D.nIdArchivo = B.IdXml 
-						JOIN finance.Viaticos_Destinos E ON A.IdViatico = E.IdViatico and E.LineNum = 1
-						JOIN hnt.Usuarios G ON G.UserID = A.UserId
-						left JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado --AND H.Estatus = 'A'
-						left JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> 'B'
-						LEFT JOIN SBOCTRZ.dbo.OCRD J ON D.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS = J.LicTradNum and J.CardType = 'S' AND J.FROZENFOR = 'N'
-						LEFT JOIN SBOCTRZ.dbo.OPRJ K ON K.PrjCode COLLATE SQL_Latin1_General_CP1_CI_AS = I.Proyecto
-						LEFT JOIN PJ_RH.dbo.Tbl_Areas L ON SUBSTRING(K.U_CodPuesto, 5,2) COLLATE SQL_Latin1_General_CP1_CI_AS = L.Cod_Area OR K.U_Area  COLLATE SQL_Latin1_General_CP1_CI_AS = L.Area
-						LEFT JOIN SBOCTRZ.DBO.OOCR M ON L.Area COLLATE SQL_Latin1_General_CP850_CI_AS = m.OcrName
-					WHERE
-						D.UUID = @UUID
-						and D.SubtotalExcento > 0
-						AND I.PROYECTO IS NOT NULL
-					GROUP BY A.IdViatico, D.nIdArchivo, A.Nombre, A.Sucursal, C.TipoDeposito, D.dFechaPago, D.dAlta, A.FechaSolicitud, D.extension , A.FechaSolicitud, D.UUID, J.CardCode, J.Currency, J.CardName, D.UsoCFDI, D.Subtotal, D.IVA08, D.IVA16, D.RetenidoISR, D.RetenidoIVA, D.dTotal, D.sRegimenFiscal, D.FormaPago, D.MetodoPago, I.Proyecto, I.NR, I.TipoGasto, D.EXTENSION, B.Rubro, A.IdViatico, A.Nombre, E.Motivo, E.Destino, D.Conceptos, D.sOCSAP, D.sFacturaSAP, D.sPagoSAP, I.Codigo_Puesto, L.TipoGasto , M.OcrCode, A.CodSucursal, D.SubtotalExcento, D.SubtotalGravado, C.RUBRO, D.IEPS
+						END TipoGastoCC
+					, ISNULL(M.OcrCode, '') Departamento
+					, CASE 
+						WHEN C.RUBRO = 'ALIMENTOS' THEN 'VI_ALIM'
+						WHEN C.RUBRO = 'HOSPEDAJE' THEN 'VI_HOSP'
+						WHEN C.RUBRO LIKE '%TAXI%'or C.RUBRO like '%TRANSPORTE%' THEN 'VI_TAXI'
+						ELSE ''
+						END [Subclasificacion]
+				FROM
+					finance.Viaticos_Header A
+					JOIN finance.Viaticos_Xml B ON A.IdViatico = B.IdViatico
+					JOIN finance.Viaticos_Totales C ON C.IdViatico = B.IdViatico AND C.Rubro = B.Rubro
+					JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ D ON D.nIdArchivo = B.IdXml 
+					JOIN finance.Viaticos_Destinos E ON A.IdViatico = E.IdViatico and E.LineNum = 1
+					JOIN hnt.Usuarios G ON G.UserID = A.UserId
+					left JOIN PJ_RH.dbo.VW_EMPLEADOS H ON H.cvetra COLLATE SQL_Latin1_General_CP1_CI_AS = G.RH_NumEmpleado --AND H.Estatus = 'A'
+					left JOIN PJ_RH.dbo.VW_PLANTILLA I ON I.Codigo_Puesto = H.Codigo_Puesto AND I.cvecia = H.cvecia AND I.Estatus <> 'B'
+					LEFT JOIN SBOCTRZ.dbo.OCRD J ON D.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS = J.LicTradNum and J.CardType = 'S' AND J.FROZENFOR = 'N'
+					LEFT JOIN SBOCTRZ.dbo.OPRJ K ON K.PrjCode COLLATE SQL_Latin1_General_CP1_CI_AS = I.Proyecto
+					LEFT JOIN PJ_RH.dbo.Tbl_Areas L ON SUBSTRING(K.U_CodPuesto, 5,2) COLLATE SQL_Latin1_General_CP1_CI_AS = L.Cod_Area OR K.U_Area  COLLATE SQL_Latin1_General_CP1_CI_AS = L.Area
+					LEFT JOIN SBOCTRZ.DBO.OOCR M ON L.Area COLLATE SQL_Latin1_General_CP850_CI_AS = m.OcrName
+				WHERE
+					D.UUID = @UUID
+					and D.SubtotalExcento > 0
+					AND I.PROYECTO IS NOT NULL
+				GROUP BY A.IdViatico, D.nIdArchivo, A.Nombre, A.Sucursal, C.TipoDeposito, D.dFechaPago, D.dAlta, A.FechaSolicitud, D.extension , A.FechaSolicitud, D.UUID, J.CardCode, J.Currency, J.CardName, D.UsoCFDI, D.Subtotal, D.IVA08, D.IVA16, D.RetenidoISR, D.RetenidoIVA, D.dTotal, D.sRegimenFiscal, D.FormaPago, D.MetodoPago, I.Proyecto, I.NR, I.TipoGasto, D.EXTENSION, B.Rubro, A.IdViatico, A.Nombre, E.Motivo, E.Destino, D.Conceptos, D.sOCSAP, D.sFacturaSAP, D.sPagoSAP, I.Codigo_Puesto, L.TipoGasto , M.OcrCode, A.CodSucursal, D.SubtotalExcento, D.SubtotalGravado, C.RUBRO, D.IEPS
 				END
 				-- PRINCIPAL CUANDO SE LIBERE PAGOS PROVEEDORES
 				IF @OPC = 8
@@ -2062,19 +2089,26 @@ BEGIN
 					SELECT 
 						Id
 						, Motivo
-						, AcctCode
+						, A.AcctCode
 						, EstatusRequisicion
 						, EstatusDocumentacion 
 						, F.DocNum [OC_DocNum]
 						, FORMAT(CAST(DATEADD(DAY, 4, A.CreateDate) AS DATE), 'yyyy-MM-dd')[FechaCompromiso]
-						, CASE WHEN CAST(GETDATE() AS DATE) > CAST(DATEADD(DAY, 4, A.CreateDate) AS DATE) THEN CAST(0 AS BIT) ELSE CAST(1 AS BIT) END[PuedeCargar]
-						, A.RecibeFactura-- DETALLE DE COTIZACIÓN
+						, CASE 
+							WHEN CAST(GETDATE() AS DATE) > CAST(DATEADD(DAY, 4, A.CreateDate) AS DATE) THEN CAST(0 AS BIT) 
+							ELSE CAST(1 AS BIT) 
+						  END [PuedeCargar]
+						, A.RecibeFactura
 						, AperturaManual
+						, J.DocNum Factura_Proveedor
 					FROM 
 						finance.RequisicionCompra A
 						LEFT JOIN sap.ODRF E ON E.U_FolioSolicitud = CAST(A.Id AS VARCHAR(50)) AND E.Indicator = 'HW'
 						LEFT JOIN SBOCTRZ.dbo.OPOR F ON E.TransId = F.DocEntry AND E.ObjType = 22 and E.DocType = 'S'
+						LEFT JOIN SBOCTRZ.dbo.PCH1 G ON F.DocEntry = G.BaseEntry
+						LEFT JOIN SBOCTRZ.dbo.OPCH J ON G.DocEntry = J.DocEntry AND ISNULL(J.Indicator, '') <> 'CF'
 					WHERE A.Id = @IdRequisicion
+					
 
 					-- DETALLE COTIZACION 
 					SELECT
@@ -2239,10 +2273,9 @@ BEGIN
 							--LEFT JOIN finance.RequisicionCompra H ON G.U_FolioSolicitud = CAST(H.Id AS VARCHAR(50))
 						WHERE
 							B.AcctCode = @Cuenta
-							and MONTH(B.DocDate) = MONTH(GETDATE())
-							and YEAR(B.DocDate) = YEAR(GETDATE())
-							AND ISNULL(A.Indicator, '') <> 'CF'
-							AND A.CANCELED = 'N'
+							AND MONTH(B.DocDate) = MONTH(GETDATE())
+							AND YEAR(B.DocDate) = YEAR(GETDATE())
+							AND A.CANCELED <> 'Y'
 						GROUP BY A.DocNum, A.DocDate, B.Dscription, C.CardCode, C.CardName, B.Project
 						--UNION ALL
 						--SELECT
@@ -2286,8 +2319,7 @@ BEGIN
 								A.AcctCode = @Cuenta
 								AND MONTH(A.DocDate) = MONTH(GETDATE()) - 1 -- cambiar a 
 								AND YEAR(A.DocDate) = YEAR(GETDATE())
-								AND ISNULL(B.Indicator, '') <> 'CF'
-								AND B.CANCELED = 'N'
+								AND B.CANCELED <> 'Y'
 						) T0 
 					)
 
@@ -2310,8 +2342,6 @@ BEGIN
 								A.AcctCode = @Cuenta
 								AND MONTH(A.DocDate) = MONTH(GETDATE())
 								AND YEAR(A.DocDate) = YEAR(GETDATE())
-								AND ISNULL(B.Indicator, '') <> 'CF'
-								AND B.CANCELED = 'N'
 						) T0
 					)
 
