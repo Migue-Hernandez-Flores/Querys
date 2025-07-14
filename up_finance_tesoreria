@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_Tesoreria]    Script Date: 14/07/2025 05:51:43 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_Tesoreria]    Script Date: 14/07/2025 05:51:26 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -64,6 +64,7 @@ ALTER PROCEDURE [dbo].[up_finance_Tesoreria]
    , @HTML NVARCHAR(MAX) = NULL
    , @ComentarioRechazo VARCHAR(300) = NULL
    , @CORREOJEFACOBRANZA varchar(max) = NULL
+   , @FechaDevolucion DATE = NULL
 AS
 BEGIN
 	DECLARE @NuevoNombre varchar(max) = null
@@ -452,6 +453,7 @@ BEGIN
 				, C.Nombre AS [Jefa de cobranza]
 				, CONVERT(varchar,[FechaSoli],23) AS [Fecha de solicitud]
 				, CONVERT(varchar,[FechaAuto],23) AS [Fecha de autorizacion]
+				, ISNULL(Fecha_Devolucion, FechaAuto) [Fecha_de_devolucion]
 				, [SAPBancos] AS [SAP Bancos]
 				, [ClabeInterbancaria] AS [Clabe Interbancaria]
 				, [Banco]
@@ -611,7 +613,7 @@ BEGIN
 		IF @Consulta = 'JP' -- JEFA DE PAGOS
 		BEGIN
 			UPDATE [finance].[Devoluciones_Clientes]
-			SET NoReferencia = @NoReferencia , ReferenciaPago = @ReferenciaPago, CuentaContable = @CuentaContable, ArchivoPago = @ArchivoPago
+			SET NoReferencia = @NoReferencia , ReferenciaPago = @ReferenciaPago, CuentaContable = @CuentaContable, ArchivoPago = @ArchivoPago, Fecha_Devolucion = @FechaDevolucion
 			WHERE ID = @ID;
 		END
 			
