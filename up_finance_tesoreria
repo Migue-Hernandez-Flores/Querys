@@ -1,0 +1,759 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_finance_Tesoreria]    Script Date: 14/07/2025 05:51:43 p. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+-- =============================================
+-- Author: Pedro Miguel Juárez Montes
+-- Create date: 26-09-2016 12:18:00
+-- Description:	Procedimiento que contiene los metodos para el area de TESORERIA
+-- =============================================
+ALTER PROCEDURE [dbo].[up_finance_Tesoreria]
+    @TipoConsulta		int	
+   , @FechaDesde			datetime =	NULL
+   , @FechaHasta			datetime =	NULL
+   , @Proveedor			varchar(50) = NULL
+   , @Rubro				varchar(50) = NULL
+   , @Comentarios		varchar(500) = NULL
+   , @Opcion				int = NULL
+   , @Mensual			int = NULL
+   , @Semanal			int = NULL
+   , @Mes				int = NULL
+   , @Anio				int = NULL
+   , @Moneda				varchar(50) = NULL
+   , @TC					numeric(18,4) = NULL
+   , @FechaCambio		DATE = NULL
+   , @Empresa            varchar(50) = NULL 
+   , @SAPBancos          varchar(50) = NULL
+   , @FechaSoli          DATE = NULL
+   , @Banco              varchar(50) = NULL
+   , @Importe            Decimal(18,4) = NULL
+   , @ImporteE           varchar(max) = NULL
+   , @ImporteC           varchar(max) = NULL
+   , @CodCliente         varchar(18) = NULL
+   , @NombreCliente      varchar(50) = NULL
+   , @ClabeInterbancaria varchar(18) = NULL
+   , @Correo             varchar(50) = NULL
+   , @JefaCobranza       varchar(50) = NULL
+   , @Desde              DATE = NULL
+   , @Hasta              DATE = NULL
+   , @Usuario            int = NULL
+   , @Nombre             varchar(100) = NULL
+   , @Extension          varchar(50) = NULL
+   , @Archivo            varbinary(max) = NULL
+   , @Ruta               varchar(max) = NULL
+   , @IdDevolucion       int = NULL
+   , @ID                 int = NULL
+   , @Consulta           varchar(5) = NULL
+   , @Autoriza           varchar(50) = NULL
+   , @NoReferencia       varchar(50) = NULL
+   , @ReferenciaPago     varchar(50) = NULL
+   , @Tipo               varchar(50) = NULL
+   , @CuentaContable     varchar(150) = NULL
+   , @ArchivoPago        varchar(150) = NULL
+   , @TipoF              varchar(10) = NULL
+   , @Autorizado         bit = NULL
+   , @QRY                varchar(max) = NULL
+   , @Comentario         varchar(250) = NULL
+   , @ClaveInterbancaria VARCHAR(50) = NULL
+   , @ComentaDesJP VARCHAR(300) = NULL
+   , @HTML NVARCHAR(MAX) = NULL
+   , @ComentarioRechazo VARCHAR(300) = NULL
+   , @CORREOJEFACOBRANZA varchar(max) = NULL
+AS
+BEGIN
+	DECLARE @NuevoNombre varchar(max) = null
+
+	--OPCION PARA DEVOLVER LOS PAGOS USD
+	IF @TipoConsulta = 1
+	BEGIN
+		SELECT isnull(B.DocNum,A.TransId) NoMov,
+		ISNULL(B.CardCode,'AS') Proveedor,isnull(B.CardName,'-') Nombre,
+		Abs((A.FCDebit-A.FCCredit)) MontoUSD,
+		(Abs((A.FCDebit-A.FCCredit))) * (isnull(B.DocRate,C.mTC))[MontoMXP],
+		--abs((A.Debit-A.Credit)) MontoMXP,
+		isnull(B.DocRate,C.mTC) TC_pago,
+		A.RefDate Fecha_Pago,
+		C.mTC TC_DOF,
+		--isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) FormaPago,
+		CASE
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '01' THEN 'Forwards - Banamex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '02' THEN 'Forwards - Bancomer'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '03' THEN 'Fondos Propios - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '04' THEN 'Financiamiento - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '05' THEN 'Financiamiento - Intercam'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '06' THEN 'Financiamiento - Monex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '07' THEN 'Spot - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '08' THEN 'Spot - Intercam'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '09' THEN 'Spot - Monex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '10' THEN 'Refinanciamiento'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '11' THEN 'Anticipo'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '12' THEN 'Intereses estado de cuenta'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '13' THEN 'Comisiones estado de cuenta'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '14' THEN 'IVA Estado de cuenta'
+			
+		END[Forma Pago],
+		isnull(B.DocRate,C.mTC) - C.mTC [DiferenciasTC]
+		,Abs((A.FCDebit-A.FCCredit)) * isnull(C.mTC,0)[MontoDOF]
+		,CASE
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) IN ('03','12','13','14')  THEN NULL
+			ELSE
+				/*(abs((A.Debit-A.Credit)))*/((Abs((A.FCDebit-A.FCCredit))) * (isnull(B.DocRate,C.mTC))) - (Abs((A.FCDebit-A.FCCredit)) * isnull(C.mTC,0))	
+		END[Diferencias]
+		,CAST(isnull(CAST(B.DocNum AS varchar(50)), CAST(A.TransId AS varchar(50)) + CAST(A.Line_ID AS varchar(50))) AS varchar(50))  
+		+ CAST(isnull(B.TransId,A.TransId) AS varchar(50)) + ISNULL(isnull(B.U_FormaPagoTes,A.U_FormaPagoTes),'')[ID]
+		FROM [SBOCTRZ].dbo.JDT1 A
+		LEFT JOIN [SBOCTRZ].dbo.OVPM B On A.TransId = B.TransId AND B.Canceled='N'
+		LEFT JOIN finance.ORTT C ON A.RefDate = C.dFechaCambio and C.sMoneda = 'USD'
+		Where A.RefDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+		and A.Account In ('1120-001-006','1120-003-001') --Solo cuentas de Bancos USD
+		and A.FCDebit = 0 and A.FCCredit <> 0 --Descarto movimientos de ingreso, solo abono a banco (egreso)
+		and LEFT(A.ContraAct,4) not in ('1120') --Descarto traspasos
+		and (ISNULL(B.U_FormaPagoTes,A.U_FormaPagoTes) not in('10','20')  or (b.U_FormaPagoTes IS NULL AND A.U_FormaPagoTes IS NULL)) --Quitamos el valor 10 a fin de no incluir movimientos "duplicados"
+		UNION ALL
+		select A.DocNum, A.CardCode,A.CardName,A.DocTotalFC,A.DocTotal,A.DocRate,A.DocDate,C.mTC,
+		--A.U_FormaPagoTes,
+		CASE
+			WHEN A.U_FormaPagoTes = '01' THEN 'Forwards - Banamex'
+			WHEN A.U_FormaPagoTes = '02' THEN 'Forwards - Bancomer'
+			WHEN A.U_FormaPagoTes = '03' THEN 'Fondos Propios - Banco Base'
+			WHEN A.U_FormaPagoTes = '04' THEN 'Financiamiento - Banco Base'
+			WHEN A.U_FormaPagoTes = '05' THEN 'Financiamiento - Intercam'
+			WHEN A.U_FormaPagoTes = '06' THEN 'Financiamiento - Monex'
+			WHEN A.U_FormaPagoTes = '07' THEN 'Spot - Banco Base'
+			WHEN A.U_FormaPagoTes = '08' THEN 'Spot - Intercam'
+			WHEN A.U_FormaPagoTes = '09' THEN 'Spot - Monex'
+			WHEN A.U_FormaPagoTes = '10' THEN 'Refinanciamiento'
+			WHEN A.U_FormaPagoTes = '11' THEN 'Anticipo'
+			WHEN A.U_FormaPagoTes = '12' THEN 'Intereses estado de cuenta'
+			WHEN A.U_FormaPagoTes = '13' THEN 'Comisiones estado de cuenta'
+			WHEN A.U_FormaPagoTes = '14' THEN 'IVA Estado de cuenta'
+			
+		END[Forma Pago],
+		A.DocRate - C.mTC, A.DocTotalFC * C.mTC, A.DocTotal - (A.DocTotalFC * C.mTC)
+		,CAST((A.DocEntry * -1) as varchar(50)) +  CAST(A.DocNum AS varchar(50)) + ISNULL(A.U_FormaPagoTes,'')[ID]
+		from [SBOCTRZ].dbo.OVPM A 
+		LEFT JOIN finance.ORTT C ON A.DocDate = C.dFechaCambio and C.sMoneda = 'USD'
+		Where A.Canceled = 'N' and A.U_FormaPagoTes in ('05','06') and A.DocDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+		ORDER BY Proveedor
+
+		/*******************************SE CONSULTA EL DETALLE*********************/
+		SELECT isnull(B.DocNum,A.TransId) NoMov, ISNULL(E.DocNum, F.DocNum)[No.Documento], 
+		CASE
+			WHEN D.InvType = 18 THEN 'Factura'
+			WHEN D.InvType = 19 THEN 'NCredito'
+		END[TipoDocumento],
+		D.AppliedFC[MontoUSD],
+		D.AppliedSys[MontoMXP] 
+		,CAST(isnull(CAST(B.DocNum AS varchar(50)), CAST(A.TransId AS varchar(50)) + CAST(A.Line_ID AS varchar(50))) AS varchar(50))  
+		+ CAST(isnull(B.TransId,A.TransId) AS varchar(50)) + ISNULL(isnull(B.U_FormaPagoTes,A.U_FormaPagoTes),'')[ID]
+		FROM [SBOCTRZ].dbo.JDT1 A
+		LEFT JOIN [SBOCTRZ].dbo.OVPM B On A.TransId = B.TransId AND B.ObjType = 46 AND B.Canceled = 'N'
+		LEFT JOIN [SBOCTRZ].dbo.VPM2 D ON B.DocNum = D.DocNum AND D.ObjType = 46
+		LEFT JOIN [SBOCTRZ].dbo.OPCH E ON E.DocEntry = D.DocEntry AND D.InvType = 18
+		LEFT JOIN [SBOCTRZ].dbo.ORPC F ON F.DocEntry = D.DocEntry AND D.InvType = 19
+		LEFT JOIN finance.ORTT C ON A.RefDate = C.dFechaCambio and C.sMoneda = 'USD'
+		WHERE A.RefDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+		and A.Account In ('1120-001-006','1120-003-001') --Solo cuentas de Bancos USD
+		and A.FCDebit = 0 and A.FCCredit <> 0 --Descarto movimientos de ingreso, solo abono a banco (egreso)
+		and LEFT(A.ContraAct,4) not in ('1120') --Descarto traspasos
+		and (ISNULL(B.U_FormaPagoTes,A.U_FormaPagoTes) not in('10','20')  or (b.U_FormaPagoTes IS NULL AND A.U_FormaPagoTes IS NULL)) --Quitamos el valor 10 a fin de no incluir movimientos "duplicados"
+		AND ISNULL(E.DocNum, F.DocNum) IS NOT NULL
+		
+		UNION ALL
+
+		SELECT A.DocNum NoMov, ISNULL(E.DocNum, F.DocNum)[No.Documento], 
+		CASE
+			WHEN D.InvType = 18 THEN 'Factura'
+			WHEN D.InvType = 19 THEN 'NCredito'
+		END[TipoDocumento],
+		D.AppliedFC[MontoUSD],
+		D.AppliedSys[MontoMXP]
+		,CAST((A.DocEntry * -1) as varchar(50)) +  CAST(A.DocNum AS varchar(50)) + ISNULL(/*A.U_FormaPagoTes*/A.Comments,'')[ID]
+		FROM [SBOCTRZ].dbo.OVPM A 
+		LEFT JOIN [SBOCTRZ].dbo.VPM2 D ON A.DocNum = D.DocNum AND D.ObjType = 46
+		LEFT JOIN [SBOCTRZ].dbo.OPCH E ON E.DocEntry = D.DocEntry AND D.InvType = 18
+		LEFT JOIN [SBOCTRZ].dbo.ORPC F ON F.DocEntry = D.DocEntry AND D.InvType = 19
+		LEFT JOIN finance.ORTT C ON A.DocDate = C.dFechaCambio and C.sMoneda = 'USD'
+		WHERE A.Canceled = 'N' and A.U_FormaPagoTes in ('05','06') and A.DocDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+		AND A.ObjType = 46
+		ORDER BY NoMov
+
+	END
+	--------------------------------------------------------------------------------------------------------
+	ELSE IF @TipoConsulta = 2
+	BEGIN
+		SELECT 
+		CASE
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '01' THEN 'Forwards - Banamex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '02' THEN 'Forwards - Bancomer'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '03' THEN 'Fondos Propios - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '04' THEN 'Financiamiento - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '05' THEN 'Financiamiento - Intercam'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '06' THEN 'Financiamiento - Monex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '07' THEN 'Spot - Banco Base'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '08' THEN 'Spot - Intercam'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '09' THEN 'Spot - Monex'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '10' THEN 'Refinanciamiento'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '11' THEN 'Anticipo'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '12' THEN 'Intereses estado de cuenta'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '13' THEN 'Comisiones estado de cuenta'
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) = '14' THEN 'IVA Estado de cuenta'
+		END[Forma Pago],
+		Abs((A.FCDebit-A.FCCredit)) MontoUSD,
+		--abs((A.Debit-A.Credit)) MontoMXP,
+		(Abs((A.FCDebit-A.FCCredit))) * (isnull(B.DocRate,C.mTC))[MontoMXP],
+		isnull(B.DocRate,C.mTC) TC_pago,
+		CASE
+			WHEN isnull(B.U_FormaPagoTes,A.U_FormaPagoTes) IN ('03','12','13','14') THEN NULL
+			ELSE
+				/*(abs((A.Debit-A.Credit)))*/((Abs((A.FCDebit-A.FCCredit))) * (isnull(B.DocRate,C.mTC))) - (Abs((A.FCDebit-A.FCCredit)) * isnull(C.mTC,0))	
+		END[Diferencias],
+		isnull(B.U_FormaPagoTes,A.U_FormaPagoTes)[CodFormaPago],
+		C.mTC TC_DOF	
+		INTO #Principal	
+		FROM [SBOCTRZ].dbo.JDT1 A
+		LEFT JOIN [SBOCTRZ].dbo.OVPM B On A.TransId = B.TransId AND B.Canceled='N'
+		LEFT JOIN finance.ORTT C ON A.RefDate = C.dFechaCambio and C.sMoneda = 'USD'
+		Where A.RefDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+		and A.Account In ('1120-001-006','1120-003-001') --Solo cuentas de Bancos USD
+		and A.FCDebit = 0 and A.FCCredit <> 0 --Descarto movimientos de ingreso, solo abono a banco (egreso)
+		and LEFT(A.ContraAct,4) not in ('1120') --Descarto traspasos
+		and (ISNULL(B.U_FormaPagoTes,A.U_FormaPagoTes) not in('10','20') or (b.U_FormaPagoTes IS NULL AND A.U_FormaPagoTes IS NULL)) --Quitamos el valor 10 a fin de no incluir movimientos "duplicados"
+		UNION ALL
+		select 
+		CASE
+			WHEN A.U_FormaPagoTes = '01' THEN 'Forwards - Banamex'
+			WHEN A.U_FormaPagoTes = '02' THEN 'Forwards - Bancomer'
+			WHEN A.U_FormaPagoTes = '03' THEN 'Fondos Propios - Banco Base'
+			WHEN A.U_FormaPagoTes = '04' THEN 'Financiamiento - Banco Base'
+			WHEN A.U_FormaPagoTes = '05' THEN 'Financiamiento - Intercam'
+			WHEN A.U_FormaPagoTes = '06' THEN 'Financiamiento - Monex'
+			WHEN A.U_FormaPagoTes = '07' THEN 'Spot - Banco Base'
+			WHEN A.U_FormaPagoTes = '08' THEN 'Spot - Intercam'
+			WHEN A.U_FormaPagoTes = '09' THEN 'Spot - Monex'
+			WHEN A.U_FormaPagoTes = '10' THEN 'Refinanciamiento'
+			WHEN A.U_FormaPagoTes = '11' THEN 'Anticipo'
+			WHEN A.U_FormaPagoTes = '12' THEN 'Intereses estado de cuenta'
+			WHEN A.U_FormaPagoTes = '13' THEN 'Comisiones estado de cuenta'
+			WHEN A.U_FormaPagoTes = '14' THEN 'IVA Estado de cuenta'
+		END[FormaPago],
+		A.DocTotalFC,A.DocTotal, A.DocRate, (A.DocTotal - (A.DocTotalFC * C.mTC)), A.U_FormaPagoTes, C.mTC		
+		from [SBOCTRZ].dbo.OVPM A 
+		LEFT JOIN finance.ORTT C ON A.DocDate = C.dFechaCambio and C.sMoneda = 'USD'
+		Where A.Canceled = 'N' and A.U_FormaPagoTes in ('05','06') and A.DocDate between CAST(@FechaDesde AS DATE) AND CAST(@FechaHasta AS DATE)
+
+		select  'Forwards - Banamex'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='01')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='01')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='01') * (-1)[DIF], 1[Orden], 0[IsTotal] /*MULTIPLICADO POR (-1) CAMBIO SOLICITADO POR PATY-HERBERT PARA EFECTOS DE MONTOS POR HABER 11/01/17*/
+		UNION ALL
+		select 'Forwards - Bancomer'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='02')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='02')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='02') * (-1)[DIF], 2[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Forwards'[FormaPago],			 (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago in('01','02'))[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago in('01','02'))[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago in('01','02')) * (-1)[DIF], 3[Orden], 1[IsTotal]
+		UNION ALL
+		select 'Fondos Propios - Banco Base'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='03')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='03')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='03') * (-1)[DIF], 4[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Dolares Propios'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='03')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='03')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='03') * (-1)[DIF], 5[Orden], 1[IsTotal]
+		UNION ALL
+		select 'Financiamiento - Banco Base'[FormaPago],(SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='04')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='04')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='04') * (-1)[DIF], 6[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Financiamiento - Intercam'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='05')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='05')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='05')* (-1)[DIF], 7[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Financiamiento - Monex'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='06')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='06')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='06')* (-1)[DIF], 8[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Financiamiento'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago IN('04','05','06'))[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago IN('04','05','06'))[MXP],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago IN('04','05','06'))* (-1)[DIF], 9[Orden], 1[IsTotal]
+		UNION ALL
+		select 'Spot - Banco Base'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='07')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='07')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='07') * (-1)[DIF], 10[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Spot - Intercam'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='08')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='08')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='08') * (-1)[DIF], 11[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Spot - Monex'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='09')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='09')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='09') * (-1)[DIF], 12[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Compra Spot'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago IN('07','08', '09'))[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago IN('07','08', '09'))[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago IN('07','08', '09')) * (-1)[DIF], 13[Orden], 1[IsTotal]
+		UNION ALL
+		select 'Intereses estado de cuenta'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago='12')[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago='12')[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago='12') * (-1)[DIF], 14[Orden], 0[IsTotal]
+		UNION ALL
+		select 'Compra Spot'[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago IN('12'))[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago IN('12'))[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago IN('12')) * (-1)[DIF], 15[Orden], 1[IsTotal]
+		UNION ALL
+		select ''[FormaPago], (SELECT SUM(MontoUSD) FROM #Principal WHERE CodFormaPago IN('01','02','03','04','05','06','07','08', '09','12'))[DolaresUsados], 
+												 (SELECT SUM(MontoMXP) FROM #Principal WHERE CodFormaPago IN('01','02','03','04','05','06','07','08', '09','12'))[MXN],
+												 (SELECT SUM(Diferencias) FROM #Principal WHERE CodFormaPago IN('01','02','03','04','05','06','07','08', '09','12')) * (-1)[DIF], 16[Orden], 2[IsTotal]
+		ORDER BY Orden
+
+		SELECT CAST(AVG(TC_Pago) AS DECIMAL(18,4))[PromedioTC], CAST(AVG(TC_DOF) AS DECIMAL(18,4))[PromedioTCDof], 
+			   CAST(MAX(TC_Pago) AS DECIMAL(18,4))[MAXTC], CAST(MIN(TC_Pago) AS DECIMAL(18,4))[MINTC]
+		FROM #Principal
+		
+
+		
+		DROP TABLE #Principal
+		--DROP TABLE #Tot
+
+	END
+	--------------------------------------------------------------------------------------------------------
+	ELSE IF @TipoConsulta = 3
+	BEGIN
+		IF @Opcion = 1 -- LA CONSULTA ES POR RANGO MENSUAL
+		BEGIN
+			SELECT Proveedor[NoProveedor], Nombre[Proveedor], Rubro, SUM([Propuesta MXP])[MontoPropMXP], SUM([Propuesta])[MontoPropUSD]
+								   , SUM(PagadoMXP)[PagadoMXP], SUM(PagadoUSD)[PagadoUSD] 
+								   , SUM(PagadoMXP) - SUM([Propuesta MXP])[DifMXP]
+								   , SUM(PagadoUSD) - SUM([Propuesta])[DifUSD]
+								   , (SELECT TOP 1 sComentarios FROM finance.ComenCompPagos tc 
+								      WHERE tc.sProveedor collate DATABASE_default = Proveedor AND tc.sGrupo = Rubro 
+									  AND dFechaDesde=CAST(@FechaDesde AS date) and dFechaHasta=CAST(@FechaHasta AS date)
+									  AND bMensual = 1 AND nMes = MONTH(@FechaHasta)
+									  )[Comentarios]
+								   , ''[Comentarios]
+
+			FROM dbo.fu_finance_PagosPropDif()--(@FechaDesde, @FechaHasta)
+			WHERE [Fecha de vencimiento] <= CAST(@FechaHasta AS date)
+			GROUP BY Proveedor, Nombre, Rubro
+			HAVING ISNULL(SUM([Propuesta MXP]),0) <> 0 OR ISNULL(SUM([Propuesta]),0)<>0 OR ISNULL(SUM(PagadoMXP),0)<>0 OR ISNULL(SUM(PagadoUSD),0)<>0
+			ORDER BY Proveedor
+
+			SELECT Proveedor, Nombre, [Folio Factura], [Folio SAP], [Moneda del documento], [Fecha de Contabilización], [Fecha de vencimiento], Estatus, [Propuesta MXP], Propuesta[PropuestaUSD], 
+			PagadoMXP, PagadoUSD, Rubro, TipoDocumento[Tipo Documento]
+			FROM dbo.fu_finance_PagosPropDif() --@FechaDesde, @FechaHasta)
+			WHERE [Fecha de vencimiento] <= CAST(@FechaHasta AS date)
+			AND (ISNULL([Propuesta MXP],0)<>0 OR ISNULL(Propuesta,0)<>0 OR ISNULL(PagadoMXP,0)<>0 OR ISNULL(PagadoUSD,0)<>0)
+
+		END
+		ELSE IF @Opcion = 2 --LA CONSULTA ES POR RANGO DESDE - HASTA
+		BEGIN
+			SELECT Proveedor[NoProveedor], Nombre[Proveedor], Rubro, SUM([Propuesta MXP])[MontoPropMXP], SUM([Propuesta])[MontoPropUSD]
+								   , SUM(PagadoMXP)[PagadoMXP], SUM(PagadoUSD)[PagadoUSD] 
+								   , SUM(PagadoMXP) - SUM([Propuesta MXP])[DifMXP]
+								   , SUM(PagadoUSD) - SUM([Propuesta])[DifUSD]
+								   , (SELECT TOP 1 sComentarios FROM finance.ComenCompPagos tc 
+								   WHERE tc.sProveedor collate DATABASE_default = Proveedor AND tc.sGrupo = Rubro 
+								   AND dFechaDesde=CAST(@FechaDesde AS date) and dFechaHasta=CAST(@FechaHasta AS date)
+								   AND bSemanal = 1
+								   )[Comentarios]
+								   --, ''[Comentarios]
+
+			FROM dbo.fu_finance_PagosPropDif()--(@FechaDesde, @FechaHasta)
+			WHERE [Fecha de vencimiento] /*BETWEEN CAST(@FechaDesde AS date) AND*/<= CAST(@FechaHasta AS DATE)
+			GROUP BY Proveedor, Nombre, Rubro
+			HAVING ISNULL(SUM([Propuesta MXP]),0) <> 0 OR ISNULL(SUM([Propuesta]),0)<>0 OR ISNULL(SUM(PagadoMXP),0)<>0 OR ISNULL(SUM(PagadoUSD),0)<>0
+			ORDER BY Proveedor
+
+
+			SELECT Proveedor, Nombre, [Folio Factura], [Folio SAP], [Moneda del documento], [Fecha de Contabilización], [Fecha de vencimiento], Estatus, [Propuesta MXP], Propuesta[PropuestaUSD], 
+			PagadoMXP, PagadoUSD, Rubro, TipoDocumento[Tipo Documento]
+			FROM dbo.fu_finance_PagosPropDif() --(@FechaDesde, @FechaHasta)
+			WHERE [Fecha de vencimiento] /*BETWEEN CAST(@FechaDesde AS date) AND*/<= CAST(@FechaHasta AS DATE)
+			AND (ISNULL([Propuesta MXP],0)<>0 OR ISNULL(Propuesta,0)<>0 OR ISNULL(PagadoMXP,0)<>0 OR ISNULL(PagadoUSD,0)<>0)
+		END
+	END
+	--------------------------------------------------------------------------------------------------------
+	ELSE IF @TipoConsulta = 4
+	BEGIN
+		IF NOT EXISTS(SELECT * FROM finance.ComenCompPagos WHERE sProveedor = @Proveedor AND sGrupo = @Rubro AND dFechaDesde=CAST(@FechaDesde AS date) and dFechaHasta=CAST(@FechaHasta AS date)
+		AND bMensual = @Mensual AND bSemanal = @Semanal AND nMes = @Mes)
+		BEGIN
+			INSERT INTO finance.ComenCompPagos (sComentarios, sProveedor, sGrupo, dFechaDesde, dFechaHasta, bMensual, bSemanal, nMes)
+									VALUES (@Comentarios, @Proveedor, @Rubro, @FechaDesde, @FechaHasta, @Mensual, @Semanal, @Mes)
+		END			
+		ELSE
+		BEGIN
+			UPDATE finance.ComenCompPagos
+			SET sComentarios = @Comentarios
+			WHERE sProveedor = @Proveedor AND sGrupo = @Rubro
+			AND dFechaDesde=CAST(@FechaDesde AS date) and dFechaHasta=CAST(@FechaHasta AS date)
+			AND bMensual = @Mensual AND bSemanal = @Semanal AND nMes = @Mes
+		END
+
+	END
+	--------------------------------------------------
+	ELSE IF @TipoConsulta = 5
+	BEGIN
+		SELECT 0[Codigo], 'USD'[Moneda]
+	END
+	ELSE IF @TipoConsulta = 6
+	BEGIN
+		--DECLARE @Anio int = 2016
+		--DECLARE @Mes int = 10
+		--DECLARE @TipoMoneda varchar(50) = 'USD'
+		DECLARE @UltDay int = DAY(EOMONTH(CAST(CAST(@Anio AS varchar(4)) + '-' + CAST(@Mes AS VARCHAR(2)) + '-01' AS date)))
+		DECLARE @TCC TABLE (Dia int, Fecha date, Moneda varchar(50), Valor numeric(18,4))
+		DECLARE @Dia INT = 1
+			WHILE @Dia<=@UltDay
+			BEGIN
+				DECLARE @DIAD DATE = CAST(CAST(@Anio AS varchar(4)) + '-' + CAST(@Mes AS VARCHAR(2)) + '-' + CAST(@Dia AS VARCHAR(2))  AS date)
+				INSERT INTO @TCC VALUES(@Dia, @DIAD, @Moneda, (SELECT TOP 1 mTC FROM finance.ORTT WHERE dFechaCambio = @DIAD))
+				SET @DIA+=1;
+			END
+		SELECT * FROM @TCC
+	END
+	ELSE IF @TipoConsulta = 7
+	BEGIN
+		IF NOT EXISTS(SELECT * FROM finance.ORTT WHERE dFechaCambio = @FechaCambio AND sMoneda = @Moneda) 
+		BEGIN
+			IF @TC <> 0
+			BEGIN
+				INSERT INTO finance.ORTT (dFechaCambio, sMoneda, mTC) VALUES (@FechaCambio, @Moneda, @TC)
+			END
+		END
+		ELSE
+		BEGIN
+			UPDATE finance.ORTT
+			SET mTC = @TC
+			WHERE dFechaCambio = @FechaCambio
+			AND sMoneda = @Moneda
+		END		
+	END
+
+	ELSE IF @TipoConsulta = 8
+	BEGIN
+		SELECT TOP 1 * FROM finance.ORTT ORDER BY dFechaCambio DESC
+	END
+	-- DEVOLUCIONES: Mario Eduardo Alvarez Torres
+	ELSE IF @TipoConsulta = 9
+	BEGIN
+		-- CONSULTA TODO, AUTORIZADA Y POR PRIMER NIVEL
+		SET @QRY = '
+			SELECT 
+				A.[ID]
+				, [Empresa]
+				, B.Nombre AS [Autoriza]
+				, C.Nombre AS [Jefa de cobranza]
+				, CONVERT(varchar,[FechaSoli],23) AS [Fecha de solicitud]
+				, CONVERT(varchar,[FechaAuto],23) AS [Fecha de autorizacion]
+				, [SAPBancos] AS [SAP Bancos]
+				, [ClabeInterbancaria] AS [Clabe Interbancaria]
+				, [Banco]
+				, [Importe]
+				, [Moneda]
+				, [NoReferencia] AS [No_Referencia]
+				, [ReferenciaPago] AS [Referencia de pago]
+				, [CodCliente] AS [Codigo de cliente]
+				, [NombreCliente] AS [Nombre del cliente]
+				, [CuentaContable] AS [Cuenta contable devolucion]
+				, A.Correo
+				, D.Nombre [ArchivoPago]
+				, [Autorizar] AS [Autorizado]
+				, E.DocNum [DocNumPago]
+			FROM [finance].[Devoluciones_Clientes] AS A
+				LEFT JOIN [hnt].[Usuarios] B ON A.Autoriza = B.UserID 
+				LEFT JOIN [hnt].[Usuarios] C ON A.JefaCobranza = C.UserID 
+				LEFT JOIN [HNT-Files].[dbo].[Files_Devoluciones_Clientes] D ON A.ID = IdDevolucion AND D.Tipo =''PAGOE''
+				LEFT JOIN SBOCTRZ.dbo.OVPM E ON CAST(A.ID AS VARCHAR(50)) = E.CounterRef AND E.Canceled = ''N'' AND E.DataSource = ''O''
+			WHERE
+				FechaSoli BETWEEN '''+CAST(@Desde AS varchar)+''' AND '''+CAST(@Hasta AS varchar)+'''
+				AND (CASE WHEN '''+@Empresa+''' = ''TODO'' THEN ''1'' ELSE '''+@Empresa+''' END) = (CASE WHEN '''+@Empresa+''' = ''TODO'' THEN ''1'' ELSE Empresa END)
+			'
+			-- SOLO AQUELLOS QUE YA SON AUTORIZADOS
+			IF @Consulta = 'A' BEGIN SET @QRY = @QRY + '
+				AND Autorizar = ''AUTORIZADO''
+			' END
+			-- UNICAMENTE APARECE LOS QUE REGISTRO
+			IF @Consulta = 'P' BEGIN SET @QRY = @QRY + '
+				AND JefaCobranza = '+CONVERT(varchar(10), @ID)+'
+			' END
+
+			SET @QRY = @QRY + ' 
+				ORDER BY A.CreateDate DESC
+			'
+			
+		-- CONSULTAS ROW
+		IF @Consulta = 'R'
+		BEGIN
+			SELECT * FROM [finance].[Devoluciones_Clientes]
+			WHERE
+			ID = @ID
+		END
+		-- CONSULTAS FILE
+		IF @Consulta = 'F'
+		BEGIN
+			SELECT Nombre,Extension,CreateDate FROM [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+			WHERE
+			IdDevolucion = @ID AND (Tipo = 'CARTA' OR Tipo = 'PAGOC')
+			ORDER BY Id;
+		END
+	END
+	-- INSERTAR EN DEVOLUCIONES
+	ELSE IF @TipoConsulta = 10
+	BEGIN
+		SELECT @ID = MAX(ID) FROM [finance].[Devoluciones_Clientes];
+		INSERT INTO [finance].[Devoluciones_Clientes] (ID,Empresa,JefaCobranza,SAPBancos,FechaSoli,Banco,Moneda,Importe,CodCliente,NombreCliente,ClabeInterbancaria,Correo,ArchivoPago)
+		VALUES (ISNULL(@ID+1,1),@Empresa,@JefaCobranza,@SAPBancos,@FechaSoli,@Banco,@Moneda,CAST(@Importe AS DECIMAL(18, 4)),@CodCliente,@NombreCliente,@ClabeInterbancaria,@Correo,@ArchivoPago)
+		SELECT ID FROM [finance].[Devoluciones_Clientes] WHERE ID = (SELECT MAX(ID) FROM [finance].[Devoluciones_Clientes])
+	END
+	-- INSERTAR FILES
+	ELSE IF @TipoConsulta = 11
+	BEGIN
+		SET @NuevoNombre = @Nombre  + '-' + REPLACE(REPLACE(REPLACE(CONVERT(NVARCHAR(255),  GETDATE(), 120), '-', ''), ' ', ''), ':', '')
+		SELECT @ID = MAX(Id) FROM [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+		INSERT INTO [HNT-Files].[dbo].[Files_Devoluciones_Clientes] (Id,Usuario,Nombre,Extension,Archivo,Ruta,IdDevolucion,Tipo)
+		VALUES (ISNULL(@ID+1,1),@Usuario,@NuevoNombre ,@Extension,@Archivo,@Ruta + '\' +@NuevoNombre+@Extension,@IdDevolucion,@Tipo)
+	END
+	-- UPDATE DEVOLUCION
+	ELSE IF @TipoConsulta = 12
+	BEGIN
+		IF @Consulta = 'A' -- AUTORIZA Y ACTUALIZA ADMINISTRADOR DE COBRANZA
+		BEGIN
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET Empresa = @Empresa ,SAPBancos = @SAPBancos ,Banco = @Banco,Moneda = @Moneda,Importe = CAST(@Importe AS DECIMAL(18, 4)),CodCliente = @CodCliente,NombreCliente = @NombreCliente,ClabeInterbancaria =@ClabeInterbancaria,Correo = @Correo, Autorizar = 'AUTORIZADO', Autoriza = @Autoriza, FechaAuto = GETDATE(), ComentaDesJP = NULL
+			WHERE ID = @ID;
+		END
+		IF @Consulta = 'AC' -- AUTORIZA ADMINISTRADOR DE COBRANZA
+		BEGIN
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET Autorizar = 'AUTORIZADO', Autoriza = @Autoriza, FechaAuto = GETDATE()		
+			WHERE ID = @ID;
+		END
+		IF @Consulta = 'CC' -- CANCELA ADMINISTRADOR DE COBRANZA
+		BEGIN
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET Autorizar = 'CANCELADO', Autoriza = NULL, FechaAuto = NULL
+			WHERE ID = @ID;
+
+			SELECT @ComentarioRechazo = ComentaDesJP, @CORREOJEFACOBRANZA = B.Correo FROM [finance].[Devoluciones_Clientes] A JOIN hnt.Usuarios B ON A.JefaCobranza = B.UserID  WHERE ID = @ID
+
+			DECLARE @styleHTML NVARCHAR(MAX) = 'style = "padding: 3px 10px; background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; 	border-left: 1px solid #0070A8;"'
+			SET @HTML = '<style>.datagrid table { border-collapse: collapse; text-align: left; width: 100%; } .datagrid {font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; }.datagrid table td, .datagrid table th { padding: 3px 10px; }.datagrid table thead th {background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) );background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% );filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F'');background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8; } .datagrid table thead th:first-child { border: none; }.datagrid table tbody td { color: #00496B; border-left: 1px solid #E1EEF4;font-size: 12px;font-weight: normal; }.datagrid table tbody .alt td { background: #E1EEF4; color: #00496B; }.datagrid table tbody td:first-child { border-left: none; }.datagrid table tbody tr:last-child td { border-bottom: none; }</style>'
+			SET @HTML += '
+				<p>La devolución con los siguientes datos ha sido cancelada:</p><br>
+				<div class="datagrid" style="font: normal 12px/150% Arial, Helvetica, sans-serif; background: #fff; overflow: hidden; border: 1px solid #006699; -webkit-border-radius: 3px; -moz-border-radius: 3px; border-radius: 3px; ">
+					<table style = "border-collapse: collapse; text-align: left; width: 100%; padding: 3px 10px; ">
+						<thead background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #006699), color-stop(1, #00557F) ); background:-moz-linear-gradient( center top, #006699 5%, #00557F 100% ); filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=''#006699'', endColorstr=''#00557F''); background-color:#006699; color:#FFFFFF; font-size: 15px; font-weight: bold; border-left: 1px solid #0070A8;>
+							<tr>
+								<th ' + @styleHTML + '>Empresa</th>
+								<th ' + @styleHTML + '>Moneda</th>
+								<th ' + @styleHTML + '>Importe a devolver</th>
+								<th ' + @styleHTML + '>Banco</th>
+								<th ' + @styleHTML + '>Nombre de Cliente</th>
+								<th ' + @styleHTML + '>Clave interbancaria</th>
+							</tr>
+						</thead>
+						<tbody color: #00496B; border-left: 1px solid #E1EEF4; font-size: 12px;font-weight: normal; > '
+
+			DECLARE DevCursor CURSOR FOR SELECT Empresa , Moneda , Importe , Banco , NombreCliente , ClabeInterbancaria FROM [finance].[Devoluciones_Clientes] WHERE ID = @ID
+			OPEN DevCursor
+				FETCH NEXT FROM DevCursor INTO @Empresa, @Moneda, @Importe, @Banco, @NombreCliente, @ClaveInterbancaria
+				WHILE @@fetch_status = 0
+				BEGIN
+					SET @HTML += '
+							<tr>
+								<td style="padding: 10px 10px; ">'  + CAST(@Empresa			   AS VARCHAR(MAX))  + '</td>
+								<td style="padding: 10px 10px; ">'  + CAST(@Moneda			   AS VARCHAR(MAX))  + '</td>
+								<td style="padding: 10px 10px; ">'  + CAST(@Importe			   AS VARCHAR(MAX))  + '</td>
+								<td style="padding: 10px 10px; ">$' + CAST(@Banco			   AS VARCHAR(MAX))  + '</td>
+								<td style="padding: 10px 10px; ">$' + CAST(@NombreCliente	   AS VARCHAR(MAX))  + '</td>
+								<td style="padding: 10px 10px; ">$' + CAST(@ClaveInterbancaria AS VARCHAR(MAX))  + '</td>
+							</tr> 
+					'
+				FETCH NEXT FROM DevCursor INTO @Empresa, @Moneda, @Importe, @Banco, @NombreCliente, @ClaveInterbancaria 
+				END
+			CLOSE DevCursor
+			DEALLOCATE DevCursor
+
+			SET @HTML += '
+						</tbody>
+					</table>
+				</div><br>
+				<p>' + ISNULL(@ComentarioRechazo, '') + '</p>
+			'
+
+			DECLARE @Body NVARCHAR(MAX), @Mail VARCHAR(MAX)
+			IF ISNULL(@CORREOJEFACOBRANZA, '') = '' SET @CORREOJEFACOBRANZA = ''
+
+			SET @CORREOJEFACOBRANZA += ';auxiliar.contable4@tractozone.com.mx'
+
+			SET @Body = HNT_TRZ.dbo.fu_hnt_Str_Mail('Devolución Cancelada', @HTML)
+				EXEC msdb.dbo.sp_send_dbmail   
+					@profile_name ='Correo Halconet'
+					, @recipients = @CORREOJEFACOBRANZA
+					, @subject = N'📢 Devolución cancelada'
+					, @body = @Body
+					, @body_format= 'HTML'
+					, @blind_copy_recipients = ''
+		END
+		IF @Consulta = 'DJP' -- DESAUTORIZA JEFA DE PAGOS
+		BEGIN
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET Autorizar = 'DESAUTORIZADO', Autoriza = NULL, FechaAuto = NULL, ComentaDesJP = @Comentario		
+			WHERE ID = @ID;
+		END
+		IF @Consulta = 'JP' -- JEFA DE PAGOS
+		BEGIN
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET NoReferencia = @NoReferencia , ReferenciaPago = @ReferenciaPago, CuentaContable = @CuentaContable, ArchivoPago = @ArchivoPago
+			WHERE ID = @ID;
+		END
+			
+	END
+	-- UPDATE FILE
+	ELSE IF @TipoConsulta = 13
+	BEGIN
+		SET @NuevoNombre = @Nombre  + '-' + REPLACE(REPLACE(REPLACE(CONVERT(NVARCHAR(255),  GETDATE(), 120), '-', ''), ' ', ''), ':', '')
+		UPDATE [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+		SET Usuario = @Usuario ,Nombre = @NuevoNombre ,Extension = @Extension,Archivo = @Archivo,Ruta = @Ruta + '\' +@NuevoNombre+@Extension,IdDevolucion = @IdDevolucion
+		WHERE IdDevolucion = @IdDevolucion AND Tipo = @Tipo;
+	END
+	-- GET SAP BANCOS Y CUENTA CONTABLE
+	ELSE IF @TipoConsulta = -14
+	BEGIN
+		IF @Consulta = 'SB' -- OBTIENE BANCOS SAP
+		BEGIN
+			SELECT AcctName, AcctCode FROM SBOCTRZ.dbo.OACT WHERE AcctCode IN ('1120-002-002', '1120-002-023') AND Postable = 'Y'
+		END
+		IF @Consulta = 'CC' -- OBTIENE CUENTAS CONTABLES
+		BEGIN
+			SELECT * FROM SBOCTRZ.dbo.OACT WHERE AcctCode like '1130-005%' and Postable = 'Y'
+		END
+	END
+	-- GET SAP BANCOS Y CUENTA CONTABLE
+	ELSE IF @TipoConsulta = 14
+	BEGIN
+		IF @Consulta = 'SB' -- OBTIENE BANCOS SAP
+		BEGIN
+			IF @Empresa = 'CTRZ'
+			BEGIN
+				SELECT AcctName, AcctCode FROM SBOCTRZ.dbo.OACT WHERE AcctCode IN ('1120-002-002', '1120-002-023') AND Postable = 'Y'
+			END
+			ELSE IF @Empresa = 'DPJ'
+			BEGIN
+				SELECT AcctName, AcctCode FROM SBODPJ.dbo.OACT WHERE AcctCode IN ('1120-002-002', '1120-002-001') AND Postable = 'Y'
+			END
+		END
+		IF @Consulta = 'CC' -- OBTIENE CUENTAS CONTABLES
+		BEGIN
+			SELECT * FROM SBOCTRZ.dbo.OACT WHERE AcctCode like '1130-005%' and Postable = 'Y'
+		END
+	END
+	-- INSERT Y UPDATE FILE COMPROBANTE DE PAGO
+	ELSE IF @TipoConsulta = 15
+	BEGIN
+		IF EXISTS (
+		SELECT 1
+		FROM [HNT-Files].dbo.Files_Devoluciones_Clientes
+		WHERE IdDevolucion = @IdDevolucion
+		  AND Tipo = @Tipo
+		)
+		BEGIN
+			SET @NuevoNombre = @Nombre  + '-' + REPLACE(REPLACE(REPLACE(CONVERT(NVARCHAR(255),  GETDATE(), 120), '-', ''), ' ', ''), ':', '')
+			UPDATE [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+			SET Usuario = @Usuario ,Nombre = @NuevoNombre,Extension = @Extension,Archivo = @Archivo,Ruta = @Ruta + '\' +@NuevoNombre+@Extension,IdDevolucion = @IdDevolucion
+			WHERE IdDevolucion = @IdDevolucion AND Tipo = @Tipo
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET ArchivoPago = @NuevoNombre+@Extension
+			WHERE ID = @IdDevolucion
+		END
+		ELSE
+		BEGIN
+			SET @NuevoNombre = @Nombre  + '-' + REPLACE(REPLACE(REPLACE(CONVERT(NVARCHAR(255),  GETDATE(), 120), '-', ''), ' ', ''), ':', '')
+			SELECT @ID = MAX(Id) FROM [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+			INSERT INTO [HNT-Files].[dbo].[Files_Devoluciones_Clientes] (Id,Usuario,Nombre,Extension,Archivo,Ruta,IdDevolucion,Tipo)
+			VALUES (ISNULL(@ID+1,1),@Usuario, @NuevoNombre,@Extension,@Archivo,@Ruta + '\' +@NuevoNombre+@Extension,@IdDevolucion,@Tipo)
+			UPDATE [finance].[Devoluciones_Clientes]
+			SET ArchivoPago = @NuevoNombre+@Extension
+			WHERE ID = @IdDevolucion
+		END;
+	END
+	-- GET ARCHIVO
+	ELSE IF @TipoConsulta = 16
+	BEGIN
+		IF @Tipo = 'A' -- ARCHIVO
+		BEGIN
+			SELECT Archivo, Nombre, Extension FROM  [HNT-Files].[dbo].[Files_Devoluciones_Clientes] WHERE IdDevolucion = @ID AND Tipo = @TipoF
+		END
+		IF @Tipo = 'OG' -- OBTIENE Y GUARDA EN TEMP
+		BEGIN
+			SELECT Archivo, Nombre, Extension, Ruta FROM  [HNT-Files].[dbo].[Files_Devoluciones_Clientes] WHERE IdDevolucion = @IdDevolucion
+		END
+	END
+	-- MANDAR CORREO
+	ELSE IF @TipoConsulta = 17
+	BEGIN
+		DECLARE @HTML_MENSAJE varchar(max)
+		DECLARE @CORREOS varchar(max);
+		DECLARE @CORREOSADICIONALES varchar(max);
+		DECLARE @ResultadoCadena VARCHAR(MAX)
+		DECLARE @TODOSCORREOS VARCHAR(MAX)
+
+		SELECT @ResultadoCadena = STUFF(
+			(SELECT ';' + Ruta
+			 FROM [HNT-Files].[dbo].[Files_Devoluciones_Clientes]
+			 WHERE IdDevolucion = @ID
+			 FOR XML PATH('')), 1, 1, '')
+		-- TODOS LOS CORREOS
+		SELECT @CORREOS = Correo FROM [HNT_TRZ].finance.Devoluciones_Clientes WHERE ID = @ID
+		SELECT @CORREOJEFACOBRANZA =J.U_Correo
+		FROM SBOCTRZ.dbo.[@HNT_JEFASCOBRANZA] AS J
+		JOIN SBOCTRZ.dbo.OCRD AS C ON J.Name = C.U_Cobranza
+		JOIN [HNT_TRZ].finance.Devoluciones_Clientes AS D ON C.CardCode = D.CodCliente
+		WHERE D.ID = @ID;
+		SET @CORREOSADICIONALES = ';jacqueline.covarrubias@tractozone.com.mx;rosario.cuautle@tractozone.com.mx;ulises.uribe@tractozone.com.mx;auxiliar.contabilidadpj@tractozone.com.mx;gastos.puebla@tractozone.com.mx;esperanza.bautista@tractozone.com.mx;auxiliar.contable4@tractozone.com.mx;'
+		SET @TODOSCORREOS = CONCAT(@CORREOS,@CORREOSADICIONALES,@CORREOJEFACOBRANZA)
+		-- FIN CORREOS
+		SET @HTML_MENSAJE = HNT_TRZ.dbo.fu_hnt_Str_Mail_Client(
+			'Devoluciones Cobranza',  ---Asunto
+			'<div>
+				<strong>Estimado cliente '+@NombreCliente+'</strong>
+				<p>Por este medio le informamos que la solicitud de devolución de pago realizada por usted por un importe de $'+@ImporteC+' ('+@ImporteE+') a la cuenta con clabe interbancaria '+@ClabeInterbancaria+' fue realizada el día de hoy, anexamos el comprobante de su devolución. </p>	
+				<p>Le reiteramos que estamos a su servicio y cualquier duda que tenga la podrá aclarar con Jacqueline Covarrubias 2226802025 o con Rosario Cuautle al 2222178443</p>
+				<p>Saludos Cordiales</p>
+			</div> ' -- Cuerpo del correo
+		)
+		
+		EXEC HNT_TRZ.[dbo].[up_hnt_SendMail]  
+		@profile_name ='Correo Halconet'
+		, @recipients = @TODOSCORREOS
+		, @subject = 'Datos devolución'
+		, @body = @HTML_MENSAJE
+		--, @blind_copy_recipients = 'miguel.hernandez@tractozone.com.mx'
+		, @file_attachments= @ResultadoCadena
+	END
+	-- NOTIFICACIONES
+	ELSE IF @TipoConsulta = 18
+	BEGIN
+		SELECT ID,FechaSoli,Autorizar,ComentaDesJP FROM [finance].[Devoluciones_Clientes] WHERE Autorizar = 'SIN AUTORIZAR' OR Autorizar = 'DESAUTORIZADO'
+	END
+	ELSE IF @TipoConsulta = 19
+	BEGIN
+	SELECT ID,Autorizar
+		FROM [finance].[Devoluciones_Clientes]
+		WHERE Autorizar = 'AUTORIZADO' AND (
+			NoReferencia IS NULL AND
+			ReferenciaPago IS NULL AND
+			CuentaContable IS NULL AND
+			ArchivoPago IS NULL
+		);
+	END
+	EXECUTE(@QRY)
+END
+
