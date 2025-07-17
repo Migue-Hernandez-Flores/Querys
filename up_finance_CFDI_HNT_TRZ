@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_finance_CFDI]    Script Date: 17/07/2025 12:23:26 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_finance_CFDI]    Script Date: 17/07/2025 12:12:21 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -61,7 +61,6 @@ ALTER PROCEDURE [dbo].[up_finance_CFDI](
 	, @Descuento		 numeric(18,4) = NULL
 	, @IVA08			 numeric(18,4) = null
 	, @IVA16			 numeric(18,4) = null
-	, @BaseIVA0				 numeric(18,4) = null
 	, @IEPS				 NUMERIC(18,4) = NULL
 	, @ISH				 NUMERIC(18,4) = NULL
 	, @Conceptos		 NVARCHAR(max) = NULL
@@ -2839,18 +2838,17 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 	BEGIN
 		IF NOT EXISTS(SELECT UUID FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE UUID = @UUID OR @UUID = '')
 		BEGIN
-			SET @Identity = (SELECT MAX(nIdArchivo) + 1 FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ)
 			INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
-				([nIdArchivo],[DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+				([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
 				[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
 				[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
-				[sRegimenFiscal], [ArchivoPDF], [BaseIVA0])
+				[sRegimenFiscal], [ArchivoPDF])
 			VALUES
-				(@Identity, @DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, 'A',
+				(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, 'A',
 				@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
 				@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento + ISNULL(@ISH, 0), @Version, @Folio, 
-				@RegimenFiscal, @Archivo1, @BaseIVA0)
-		    --SET @Identity = SCOPE_IDENTITY()
+				@RegimenFiscal, @Archivo1)
+		    SET @Identity = SCOPE_IDENTITY()
 
 			SELECT
 				ISNULL(FORMAT(dFechaPago, 'yyyy-MM-dd'), '') FechaPago
@@ -2859,7 +2857,7 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 				, ISNULL(NombreEmisor, 0) NombreEmisor
 				, ISNULL(sRegimenFiscal, '') sRegimenFiscal
 				, ISNULL(Conceptos, '') Conceptos
-				, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+				, ISNULL(SubtotalExcento, 0) SubtotalExcento
 				, ISNULL(SubtotalGravado, 0) SubtotalGravado
 				, ISNULL(IVA08 + IVA16, 0) IVA
 				, ISNULL(RetenidoIVA, 0) RetenidoIVA
@@ -2931,7 +2929,7 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 				, ISNULL(NombreEmisor, 0) NombreEmisor
 				, ISNULL(Emisor,'') Emisor
 				, ISNULL(Conceptos, '') Conceptos
-				, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+				, ISNULL(SubtotalExcento, 0) SubtotalExcento
 				, ISNULL(Subtotal, 0) Subtotal
 				, ISNULL(IVA08 + IVA16, 0) IVA
 				, ISNULL(RetenidoIVA, 0) RetenidoIVA
@@ -3015,7 +3013,6 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 					, VersionCFDI = @Version
 					, sRegimenFiscal = @RegimenFiscal
 					, ArchivoPDF = @Archivo1
-					, BaseIVA0 = @BaseIVA0
 				WHERE UUID = @UUID
 
 				SELECT
@@ -3026,7 +3023,7 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 					, ISNULL(NombreEmisor, 0) NombreEmisor
 					, ISNULL(sRegimenFiscal, '') sRegimenFiscal
 					, ISNULL(Conceptos, '') Conceptos
-					, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+					, ISNULL(SubtotalExcento, 0) SubtotalExcento
 					, ISNULL(SubtotalGravado, 0) SubtotalGravado
 					, ISNULL(IVA08 + IVA16, 0) IVA
 					, ISNULL(RetenidoIVA, 0) RetenidoIVA
@@ -3046,7 +3043,7 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 					, nIdArchivo
 					, 0 val
 				FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
-				WHERE UUID = '59AB5F02-2BBA-11F0-B97C-00155D012007'
+				WHERE UUID = @UUID
 				END
 				IF UPPER(@Deducible) = 'ON'
 				BEGIN
@@ -3057,13 +3054,13 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 							INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
 								([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
 								[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
-								[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio], BaseIVA0,
+								[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
 								[sRegimenFiscal], [ArchivoPDF])
 							VALUES
 								(@DocEntry, @DocNum, @DocType, CAST((select  MAX(nIdArchivo) + 1 from [HNT-Files].dbo.File_CFDI_HNT_TRZ)as varchar(max))+'-Factura', @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
 								@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
 								@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
-								@RegimenFiscal, @Archivo1, @BaseIVA0)
+								@RegimenFiscal, @Archivo1)
 
 							SET @Identity = SCOPE_IDENTITY()
 
@@ -3075,10 +3072,9 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 								, ISNULL(NombreEmisor, 0) NombreEmisor
 								, ISNULL(sRegimenFiscal, '') sRegimenFiscal
 								, ISNULL(Conceptos, '') Conceptos
-								, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+								, ISNULL(SubtotalExcento, 0) SubtotalExcento
 								, ISNULL(SubtotalGravado, 0) SubtotalGravado
 								, ISNULL(IVA08 + IVA16, 0) IVA
-								, iva0 = @BaseIVA0
 								, ISNULL(RetenidoIVA, 0) RetenidoIVA
 								, ISNULL(RetenidoISR, 0) RetenidoISR
 								, ISNULL(dTotal, 0) dTotal
@@ -3145,12 +3141,12 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 							([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
 							[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
 							[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
-							[sRegimenFiscal], [ArchivoPDF], [BaseIVA0])
+							[sRegimenFiscal], [ArchivoPDF])
 						VALUES
 							(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
 							@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
 							@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
-							@RegimenFiscal, @Archivo1, @BaseIVA0)
+							@RegimenFiscal, @Archivo1)
 						SET @Identity = SCOPE_IDENTITY()
 
 						SELECT
@@ -3750,7 +3746,7 @@ DECLARE @_VersionActual nvarchar(10) =  'A'
 			WHERE 
 				A.Empresa = @Empresa
 				AND A.Fecha BETWEEN @Desde AND @Hasta
-				AND A.Monto <> 0
+				--AND A.Monto <> 0
 				--AND ISNULL(B.U_Edocnum, D.U_Edocnum) IS NULL
 			GROUP BY 
 				A.Estatus
