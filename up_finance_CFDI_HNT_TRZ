@@ -1,0 +1,3783 @@
+USE [HNT_TRZ]
+GO
+/****** Object:  StoredProcedure [dbo].[up_finance_CFDI]    Script Date: 17/07/2025 12:23:26 p. m. ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROCEDURE [dbo].[up_finance_CFDI](
+	 @TipoConsulta		 int
+	, @UUIDPadre	     varchar(150)=NULL
+	, @UUID			     varchar(300)=NULL
+	, @Fecha		     datetime=NULL
+	, @Monto		     decimal(18,4)=NULL
+	, @Proveedor	     varchar(200)=NULL
+	, @DocNum		     int=NULL
+	, @DocEntry		     int=NULL
+	, @DocType		     char(1)=NULL
+	, @ObjType		     nvarchar(20)=NULL
+	, @DocTotal		     numeric(18,4)=NULL
+	, @DocTotalfc	     numeric(18,4)=NULL
+	, @DocDate		     datetime=NULL
+	, @Mensaje		     text=NULL
+	, @Moneda		     varchar(20)=NULL
+	, @Mes			     int=NULL
+	, @Anho			     int=NULL
+	, @iArchivo		     int = NULL OUTPUT
+	, @CardCode		     varchar(100) = NULL
+	, @RutaArc		     varchar(max) = NULL
+	, @Archivo		     varbinary(MAX) = NULL
+	, @Archivo1			 varbinary(MAX) = NULL
+	, @Nombre		     varchar(50) = NULL
+	, @Extension	     varchar(10) = NULL
+	, @TipoDoc	         varchar(50) = NULL
+	, @Desde		     datetime = NULL
+	, @Hasta		     datetime = NULL
+	, @UserSign		     int = NULL
+	, @User_ID		     int = NULL
+	, @Contabilizacion   int = NULL
+	, @MonedaFactura     VARCHAR(50) = NULL
+	, @MonedaXML	     VARCHAR(50) = NULL
+	, @CargaNueva	     int = NULL
+	, @Mensaje1		     varchar(100) = NULL OUTPUT
+	, @TipoEmpresa	     int = NULL /** 1=PJ, 2=LogTransp, 3=PEJ, 4=ServCorp, 5=ServImp **/
+	, @_Version		     nvarchar(10) = NULL
+	, @MetodoPago        varchar(10) = NULL
+	, @NoParcialidad     varchar(50) = NULL
+	, @Relacion		     varchar(10) = NULL
+	, @Emisor		     varchar(50) = NULL
+	, @Receptor		     varchar(50) = NULL
+	, @NameEmisor	     varchar(500) = NULL
+	, @NameReceptor	     varchar(500) = NULL
+	, @FormaPago	     varchar(50) = NULL
+	, @FechaPago	     datetime = null
+	, @EfectoComprobante varchar(50) = NULL
+	, @Version		     VARCHAR(10) = NULL
+	, @UsoCFDI		     VARCHAR(10) = NULL
+	, @TipoComprobante	 NVARCHAR(100) = NULL
+	, @Subtotal			 numeric(18,4)=NULL
+	, @Descuento		 numeric(18,4) = NULL
+	, @IVA08			 numeric(18,4) = null
+	, @IVA16			 numeric(18,4) = null
+	, @BaseIVA0				 numeric(18,4) = null
+	, @IEPS				 NUMERIC(18,4) = NULL
+	, @ISH				 NUMERIC(18,4) = NULL
+	, @Conceptos		 NVARCHAR(max) = NULL
+	, @SubtotalExcento   NUMERIC(18,4) = null
+	, @SubtotalGravado   NUMERIC(18,4) = null
+	, @Subtototal        NUMERIC(18,4) = null
+	, @RetenidoISR       NUMERIC(18,4) = null
+	, @RetenidoIVA       NUMERIC(18,4) = NULL
+	, @Folio			 NVARCHAR(100) = null
+	, @RegimenFiscal	 VARCHAR(4) = null
+	, @Qry				 NVARCHAR(MAX) = NULL
+	, @QRY1				 NVARCHAR(MAX) = NULL
+	, @Id				 INT = NULL
+	, @Estatus			 NVARCHAR(20) = NULL
+	, @EmisorRFC		 NVARCHAR(60) = NULL
+	, @Tipo				 NVARCHAR(10) = NULL
+	, @nIdArchivo		 INT = NULL
+	, @Modulo			 INT = NULL
+	, @IdInsertado		 int = null
+	, @IdViatico		 int = NULL
+	, @Rubro			 varchar(100) = null
+	, @Total			 DECIMAL(18,4) = NULL
+	, @Estado					VARCHAR(20) = null
+	, @RechazoAutomatico		VARCHAR(20) = ''
+	, @Deducible		 NVARCHAR(5) = NULL
+	, @Identity			 int = null
+	, @Variable			varchar(max) = null
+	, @Error			varchar(max) = NULL
+	, @Usuario			INT = NULL
+	, @Message			VARCHAR(250) = NULL OUTPUT
+	, @Type				VARCHAR(250) = NULL OUTPUT
+	, @TipoCambio		DECIMAL(18, 4) = NULL
+	, @Opcion			INT = NULL
+	, @TablaCFDISAT [finance].[Type_PagosCFDISATV2] READONLY
+	, @Empresa			NVARCHAR(100) = NULL
+	, @Params			NVARCHAR(MAX) = NULL
+)
+AS
+BEGIN
+
+DECLARE @SQLString  nvarchar(max), @SQLString1  nvarchar(max)
+DECLARE @ParmDefinition nvarchar(MAX), @ParmDefinition1 nvarchar(MAX)  
+DECLARE @BD VARCHAR(50) = 'SBOCTRZ'--'SBO-DistPJ'
+DECLARE @_VersionActual nvarchar(10) =  'A'
+	--if @TipoConsulta = 1
+	--BEGIN		
+	--	select  UUID, DocNum,DocEntry,DocType, ObjType,DocDate,Moneda,Mensaje,DocTotalfc,
+	--	case when Moneda = '$' then DocTotal else case when Moneda = 'USD' then DocTotalfc end end DocTotal
+	--	from (
+	--	select a.UUID, a.DocNum,a.DocEntry,a.DocType, a.ObjType,a.DocTotal,
+	--	case when a.ObjType = 18 then (select  isnull(b.DocTotalFC,0) from [SBO-DistPJ].dbo.OPCH b where a.DocEntry  = b.DocEntry)  else case when a.ObjType = 19 then (select isnull(c.DocTotalFC,0) from [SBO-DistPJ].dbo.ORPC c where a.DocEntry = c.DocEntry) end end  DocTotalfc, 
+	--	case when a.ObjType = 18 then (select  b.DocDate from [SBO-DistPJ].dbo.OPCH b where a.DocEntry  = b.DocEntry)  else case when a.ObjType = 19 then (select c.DocDate from [SBO-DistPJ].dbo.ORPC c where a.DocEntry = c.DocEntry) end end  DocDate ,
+	--	case when a.ObjType = 18 then (select  b.DocCur from [SBO-DistPJ].dbo.OPCH b where a.DocEntry  = b.DocEntry)  else case when a.ObjType = 19 then (select c.DocCur from [SBO-DistPJ].dbo.ORPC c where a.DocEntry = c.DocEntry) end end  Moneda ,
+	--	case when a.ObjType = 18 then (select distinct(d.Mensaje)  from CFDI_Excepciones d where a.DocEntry  = d.DocEntry and d.ObjType = 18)  else case when a.ObjType = 19 then (select distinct(e.Mensaje) from CFDI_Excepciones e where a.DocEntry = e.DocEntry and e.ObjType = 19) end end  Mensaje
+	--	from SGUV.dbo.CFDI_Proveedores a 
+	--	where UUID = @UUID
+	--	group by a.UUID, a.DocNum,a.DocEntry,a.DocType, a.ObjType,a.DocTotal,Moneda  )t1
+	--END
+	if @TipoConsulta = 2
+	BEGIN
+			delete from [finance].[CFDISAT] where UUID = @UUID		
+			INSERT INTO [finance].[CFDISAT] 
+			   ([Estatus], [EfectoComprobante], [UUID], [Fecha], [UsoCFDI], [EmisorRFC], [Proveedor], [emisorRegimen], [Conceptos], [Monto],
+			   [DocNum],[DocEntry],[DocType],[ObjType],[DocTotal],[DocTotalfc] ,[DocDate],[Razon],[Moneda],[Version], [FormaPago], [MetodoPago])
+			   VALUES (@Estatus, @EfectoComprobante, @UUID, @Fecha, @UsoCFDI, @EmisorRFC, @Proveedor, @RegimenFiscal, @Conceptos,  @Monto,
+			   @DocNum, @DocEntry,@DocType,@ObjType, @DocTotal, @DocTotalfc, @DocDate,@Mensaje,@Moneda, 'A', @FormaPago, @MetodoPago)
+	END
+
+	--if @TipoConsulta = 3 --todos los registros
+	--BEGIN
+	--	--select distinct(a.UUID), a.Proveedor,c.Fecha ,a.DocDate ,   a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType
+	--	--,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--	--else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, Razon 
+	--	-----,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito' else '' end end  TipoDocumento
+	--	--from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry
+	--	--inner join SGUV.dbo.CFDI_Proveedores c on a.UUID = c.UUID 
+	--	--where DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	--	and a.DocEntry not in (select DocEntry from CFDI_Excepciones where Mensaje not in('Sin XML', 'XML Invalido'))
+	--	--UNION ALL
+	--	--select distinct(c.UUID)Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha ,B.DocDate ,   c.Moneda Collate DATABASE_DEFAULT,
+	--	--Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,
+	--	--B.DocType Collate DATABASE_DEFAULT
+	--	--,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--	--else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, A.Mensaje Razon 
+	--	--from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--	--left join CFDISAT c on b.DocEntry = c.DocEntry
+	--	--left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	--where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	--	AND a.Mensaje in ('Sin XML', 'XML Invalido')
+	--	--UNION ALL
+	--	--select distinct(c.UUID) Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha ,B.DocDate ,   c.Moneda Collate DATABASE_DEFAULT,
+	--	--Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,
+	--	--B.DocType Collate DATABASE_DEFAULT
+	--	--,case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor' 
+	--	--else case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito' else '' end end end end ObjType, A.Mensaje Razon 
+	--	--from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--	--left join CFDISAT c on b.DocEntry = c.DocEntry
+	--	--left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	--where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	--	AND a.Mensaje in ('Sin XML', 'XML Invalido')
+	--	-----------------------DOCUMENTOS OK
+	--	select
+	--		a.UUID,
+	--		a.Proveedor, b.DocDate Fecha,
+	--		a.DocDate, a.Moneda ,a.Monto ,a.DocTotal,
+	--		a.DocTotalfc, a.DocNum, a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		a.Razon, 
+	--		E.GroupName [Grupo],
+	--		F.SeriesName Serie, D.CardCode [S/N], D.CardName
+	--	from CFDISAT a 
+	--		INNER join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry and a.ObjType collate database_default = b.ObjType
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD D ON B.CardCode = D.CardCode
+	--		INNER JOIN [SBO-DistPJ].DBO.OCRG E ON D.GroupCode = E.GroupCode
+	--		INNER JOIN [SBO-DistPJ].DBO.NNM1 F ON B.Series = F.Series
+	--	where DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	select
+	--		a.UUID collate database_default,
+	--		a.Proveedor collate database_default, b.DocDate Fecha,
+	--		a.DocDate, a.Moneda collate database_default, a.Monto ,a.DocTotal,
+	--		a.DocTotalfc, a.DocNum, a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		a.Razon, 
+	--		E.GroupName [Grupo],
+	--		F.SeriesName Serie, D.CardCode [S/N], D.CardName
+	--	from CFDISAT a 
+	--		INNER join [SBO-DistPJ].dbo.OPCH b on a.DocEntry = b.DocEntry and a.ObjType collate database_default = b.ObjType
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD D ON B.CardCode = D.CardCode
+	--		INNER JOIN [SBO-DistPJ].DBO.OCRG E ON D.GroupCode = E.GroupCode
+	--		INNER JOIN [SBO-DistPJ].DBO.NNM1 F ON B.Series = F.Series
+	--	where DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	----------------------------SIN XML
+	--	select
+	--		NULL UUID,
+	--		NULL Proveedor,  NULL Fecha,
+	--		B.DocDate, B.DocCur Moneda , NULL Monto, A.DocTotal,
+	--		NULL DocTotalfc, a.DocNum, a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		a.Mensaje Razon, 
+	--		E.GroupName [Grupo],
+	--		F.SeriesName Serie, D.CardCode [S/N], D.CardName
+	--	from CFDI_Excepciones A 
+	--		INNER join [SBO-DistPJ].dbo.OPCH b on a.DocEntry = b.DocEntry and a.ObjType collate database_default = b.ObjType
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD D ON B.CardCode = D.CardCode
+	--		INNER JOIN [SBO-DistPJ].DBO.OCRG E ON D.GroupCode = E.GroupCode
+	--		INNER JOIN [SBO-DistPJ].DBO.NNM1 F ON B.Series = F.Series
+	--	where
+	--		A.Mensaje  IN ('Sin XML', 'XML Invalido') 
+	--		AND DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	UNION ALL
+	--	select
+	--		NULL UUID,
+	--		NULL Proveedor,  NULL Fecha,
+	--		B.DocDate, B.DocCur Moneda , NULL Monto, A.DocTotal,
+	--		NULL DocTotalfc, a.DocNum, a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		a.Mensaje Razon, 
+	--		E.GroupName [Grupo],
+	--		F.SeriesName Serie, D.CardCode [S/N], D.CardName
+	--	from CFDI_Excepciones A 
+	--		INNER join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry and a.ObjType collate database_default = b.ObjType
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD D ON B.CardCode = D.CardCode
+	--		INNER JOIN [SBO-DistPJ].DBO.OCRG E ON D.GroupCode = E.GroupCode
+	--		INNER JOIN [SBO-DistPJ].DBO.NNM1 F ON B.Series = F.Series
+	--	where
+	--		A.Mensaje  IN ('Sin XML', 'XML Invalido') 
+	--		AND DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	---------------SIN REGISTRO EN SAP
+	--	UNION ALL
+	--	select
+	--		a.UUID collate database_default,
+	--		a.Proveedor collate database_default, NULL Fecha,
+	--		NULL DocDate, NULL Moneda, NULL Monto , NULL DocTotal,
+	--		NULL DocTotalfc, NULL DocNum, NULL DocEntry, NULL DocType,
+	--		NULL ObjType, 
+	--		'Falta registro en SAP' Razon, 
+	--		NULL [Grupo],
+	--		NULL Serie, NULL [S/N], NULL CardName
+	--	from CFDISAT a 
+	--		left join SGUV.dbo.CFDI_Proveedores b on a.UUID = b.UUID
+	--		--INNER JOIN [SBO-DistPJ].dbo.OCRD D ON B.CardCode = D.CardCode
+	--		--INNER JOIN [SBO-DistPJ].DBO.OCRG E ON D.GroupCode = E.GroupCode
+	--		--INNER JOIN [SBO-DistPJ].DBO.NNM1 F ON B.Series = F.Series
+	--	where
+	--		B.UUID IS NULL 
+	--		and DATEPART(month, a.Fecha) = @Mes and DATEPART(year, a.Fecha) = @Anho
+
+	--END
+
+	-- if @TipoConsulta = 4 --sin xml
+	--BEGIN
+	--	select 
+	--		distinct(a.UUID), a.Proveedor,d.Fecha ,a.DocDate, a.Moneda,
+	--		a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType,
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry
+	--				inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--				inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--				inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--				left join SGUV.dbo.CFDI_Proveedores d on a.UUID = d.UUID 
+	--	where razon = 'Sin XML' and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	select 
+	--		distinct(c.UUID)Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,
+	--		d.Fecha ,B.DocDate, c.Moneda Collate DATABASE_DEFAULT,
+	--		Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,B.DocType Collate DATABASE_DEFAULT,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		A.Mensaje Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--			inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--			inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--			inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--			left join CFDISAT c on b.DocEntry = c.DocEntry
+	--			left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--		AND a.Mensaje in ('Sin XML')
+	--	UNION ALL
+	--	select 
+	--		distinct(c.UUID) Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha ,B.DocDate, c.Moneda Collate DATABASE_DEFAULT,
+	--		Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,B.DocType Collate DATABASE_DEFAULT,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		A.Mensaje Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		left join CFDISAT c on b.DocEntry = c.DocEntry
+	--		left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--		AND a.Mensaje in ('Sin XML')
+	--END
+
+	--if @TipoConsulta = 5 -- xml invalido
+	--BEGIN
+	--	select 
+	--		distinct(a.UUID), a.Proveedor,d.Fecha ,a.DocDate, a.Moneda, a.Monto, 
+	--		a.DocTotal, a.DocTotalfc, a.DocNum,a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		left join SGUV.dbo.CFDI_Proveedores d on a.UUID = d.UUID 
+	--	where razon = 'XML Invalido' and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	select 
+	--		distinct(c.UUID)Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha, 
+	--		B.DocDate, c.Moneda Collate DATABASE_DEFAULT, Monto, B.DocTotal, B.DocTotalfc, B.DocNum, B.DocEntry,
+	--		B.DocType Collate DATABASE_DEFAULT,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		A.Mensaje Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		left join CFDISAT c on b.DocEntry = c.DocEntry
+	--		left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--		AND a.Mensaje in ('XML Invalido')
+	--	UNION ALL
+	--	select 
+	--		distinct(c.UUID) Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT, d.Fecha, B.DocDate, c.Moneda Collate DATABASE_DEFAULT,
+	--		Monto, B.DocTotal, B.DocTotalfc, B.DocNum,B.DocEntry, B.DocType Collate DATABASE_DEFAULT,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		Razon, 
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		left join CFDISAT c on b.DocEntry = c.DocEntry
+	--		left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--		AND a.Mensaje in ('XML Invalido')
+	--END
+
+	--if @TipoConsulta = 6 -- sin registro
+	--BEGIN
+	--	select  UUID, Proveedor,Fecha ,DocDate ,   Moneda ,Monto ,DocTotal,DocTotalfc, DocNum,DocEntry,DocType,ObjType, Razon, ''[Grupo], '' Serie, '' [S/N], '' Proveedor
+	--	from(
+	--		select distinct(a.UUID), a.Proveedor,a.Fecha ,a.DocDate ,   a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType, 
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--		 else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, Razon 
+	--		from CFDISAT a 
+	--			left join [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--		where a.DocEntry is null and  DATEPART(month, a.fecha) = @Mes and DATEPART(year, a.fecha) = @Anho
+	--		UNION ALL
+	--		select distinct(a.UUID), a.Proveedor,a.Fecha ,a.DocDate ,   a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType
+	--		,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--		else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, Razon 
+	--		from CFDISAT a left join [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--		where a.DocEntry is null and  DATEPART(month, a.fecha) = @Mes and DATEPART(year, a.fecha) = @Anho)t1
+	--	group by UUID, Proveedor,Fecha ,DocDate ,   Moneda ,Monto ,DocTotal,DocTotalfc, DocNum,DocEntry,DocType,ObjType, Razon 
+	--	--select distinct(a.UUID), a.Proveedor,d.Fecha ,a.DocDate ,   a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType
+	--	--,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--	--else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, Razon 
+	--	-----,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito' else '' end end  TipoDocumento
+	--	--from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry
+	--	--left join SGUV.dbo.CFDI_Proveedores d on a.UUID = d.UUID 
+	--	--where DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	--	and a.DocEntry  in (select DocEntry from CFDI_Excepciones where Mensaje  in('Sin XML', 'XML Invalido'))
+	--	--UNION ALL
+	--	--select distinct(c.UUID)Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha ,B.DocDate , c.Moneda Collate DATABASE_DEFAULT,
+	--	--Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,
+	--	--B.DocType Collate DATABASE_DEFAULT
+	--	--,case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--	--else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, A.Mensaje Razon 
+	--	--from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--	--left join CFDISAT c on b.DocEntry = c.DocEntry
+	--	--left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	--where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	--	AND a.Mensaje in ('Sin XML', 'XML Invalido')
+	--	--UNION ALL
+	--	--select distinct(c.UUID) Collate DATABASE_DEFAULT, Proveedor Collate DATABASE_DEFAULT,d.Fecha ,B.DocDate ,c.Moneda Collate DATABASE_DEFAULT,
+	--	--Monto ,B.DocTotal ,B.DocTotalfc , B.DocNum ,B.DocEntry ,
+	--	--B.DocType Collate DATABASE_DEFAULT
+	--	--,case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor' 
+	--	--else case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito' else '' end end end end ObjType, A.Mensaje Razon 
+	--	--from CFDI_Excepciones A INNER JOIN [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--	--left join CFDISAT c on b.DocEntry = c.DocEntry
+	--	--left join SGUV.dbo.CFDI_Proveedores d on c.UUID = d.UUID 
+	--	--where DATEPART(month, B.DocDate) = @Mes and DATEPART(year, B.DocDate) = @Anho
+	--	--	AND a.Mensaje in ('Sin XML', 'XML Invalido')
+	--END
+
+	--if @TipoConsulta = 7--inconsistencia en monto
+	--BEGIN
+	--	select 
+	--		distinct(a.UUID), a.Proveedor, c.Fecha, a.DocDate, a.Moneda, a.Monto, a.DocTotal, a.DocTotalfc, a.DocNum, a.DocEntry, a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType,
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		inner join SGUV.dbo.CFDI_Proveedores c on a.UUID = c.UUID
+	--	where  abs(monto - a.doctotal)  > 1 and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	select 
+	--		distinct(a.UUID), a.Proveedor,c.Fecha ,a.DocDate ,   a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType,
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor] 
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC b on a.DocEntry = b.DocEntry
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--		inner join SGUV.dbo.CFDI_Proveedores c on a.UUID = c.UUID 
+	--	where  abs(monto - a.doctotal)  > 1 and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--END
+	
+	--if @TipoConsulta = 8 --inconsistencia fechas
+	--BEGIN
+	--	select 
+	--		distinct(a.UUID), a.Proveedor,c.Fecha ,a.DocDate ,  a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.OPCH B ON A.DocEntry = B.DocEntry AND b.ObjType = 18
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--	inner join SGUV.dbo.CFDI_Proveedores c on a.UUID = c.UUID 
+	--	where abs (DATEDIFF(month, a.DocDate,c.fecha))  > 0 
+	--	and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--	UNION ALL
+	--	select 
+	--		distinct(a.UUID), a.Proveedor,c.Fecha ,a.DocDate ,  a.Moneda ,a.Monto ,a.DocTotal,a.DocTotalfc, a.DocNum,a.DocEntry,a.DocType,
+	--		case when b.isIns = 'Y' then 'Factura de reserva' else case when b.DocSubType = 'DM' then 'Nota de debito'
+	--			else  case when a.ObjType = 18 then 'Factura Proveedor' else case when a.ObjType = 19 then 'Nota de Crédito Proveedor'  end end end end ObjType, 
+	--		Razon,
+	--		F.GroupName [Grupo],
+	--		g.SeriesName [Serie],
+	--		e.CardCode [S/N],
+	--		e.CardName [Proveedor]
+	--	from CFDISAT a inner join [SBO-DistPJ].dbo.ORPC B ON A.DocEntry = B.DocEntry AND b.ObjType = 19
+	--		inner join [SBO-DistPJ].dbo.OCRD e on e.CardCode = b.CardCode
+	--		inner join [SBO-DistPJ].dbo.OCRG f on e.GroupCode = f.GroupCode 
+	--		inner join [SBO-DistPJ].dbo.NNM1 g on g.Series = b.Series
+	--	inner join SGUV.dbo.CFDI_Proveedores c on a.UUID = c.UUID 
+	--	where abs (DATEDIFF(month, a.DocDate,c.fecha))  > 0 
+	--	and  DATEPART(month, a.DocDate) = @Mes and DATEPART(year, a.DocDate) = @Anho
+	--END
+
+	--if @TipoConsulta = 9
+	--BEGIN
+	--	update CFDISAT set [Fecha] = @Fecha,[Monto] = @Monto,[Proveedor] = @Proveedor,[UUID] = @UUID,[DocNum] = @DocNum,[DocEntry] = @DocEntry,[DocType] = @DocType,[ObjType] = @ObjType,[DocTotal] = @DocTotal,[DocTotalfc] = @DocTotalfc,[DocDate] = @DocDate,[Razon] = @Mensaje,[Moneda] = @Moneda
+	--	where UUID = @UUID   
+	--END
+
+	--/****************CONSULTA PARA OBTENER LAS FACTURAS DE UN PROVEEDOR PARA HACER VALIDACION DE CFDI XML*************/
+	--IF @TipoConsulta = 10
+	--BEGIN
+	--	IF @UserSign IS NOT NULL AND @UserSign>0
+	--	BEGIN --SOLO VERÁ DE SU PROPIO USUARIO USER SIGN
+	--		IF @Contabilizacion = 1
+	--		BEGIN
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura],
+	--			/*P.DocTotal[MontoFactura],*/ P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'Factura'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible] 
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.OPCH P --FACTURAS
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'Factura' 
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'Factura' 
+	--			where P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta AND P.UserSign = @UserSign
+	--			AND P.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+				
+	--			UNION 
+
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'NCredito'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible]
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.ORPC P--NOTAS DE CREDITO PROVEEDORES
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'NCredito'
+	--			where P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta AND P.UserSign = @UserSign
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = P.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+	--			--AND P.Indicator NOT IN ('CF')
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'Factura'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible] 
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.OPCH P --FACTURAS
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'Factura' 
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'Factura' 
+	--			where P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta AND P.UserSign = @UserSign
+	--			AND P.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+
+	--			UNION
+
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'NCredito'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible]
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.ORPC P--NOTAS DE CREDITO PROVEEDORES
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'NCredito'
+	--			where P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta AND P.UserSign = @UserSign
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = P.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+	--			--AND P.Indicator NOT IN ('CF')
+	--		END
+	--	END
+	--	ELSE --PUEDE VER TODO
+	--	BEGIN
+	--		IF @Contabilizacion = 1
+	--		BEGIN
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'Factura'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible] 
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.OPCH P --FACTURAS
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'Factura' 
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'Factura' 
+	--			where P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta
+	--			AND P.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+
+	--			UNION
+
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'NCredito'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible]
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.ORPC P--NOTAS DE CREDITO PROVEEDORES
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'NCredito'
+	--			where P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = P.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+	--			--AND P.Indicator NOT IN ('CF')
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'Factura'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible] 
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.OPCH P --FACTURAS
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'Factura' 
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'Factura' 
+	--			where P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta
+	--			AND P.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+
+	--			UNION
+
+	--			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--			/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--			, P.DocTotalFC, 'NCredito'[TipoDoc], 
+	--			CASE
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--				WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--			END[NoDeducible]
+	--			,CASE
+	--				WHEN DocCur = '$' THEN 'MXN'
+	--				WHEN DocCur = 'USD' THEN 'USD'	
+	--			END[Moneda]
+	--			FROM [SBO-DistPJ].dbo.ORPC P--NOTAS DE CREDITO PROVEEDORES
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'NCredito'
+	--			where P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = P.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+	--			--AND P.Indicator NOT IN ('CF')
+	--		END
+
+	--	END
+	--END
+
+	IF @TipoConsulta = 11
+	BEGIN
+		--IF @User_ID = 2551
+		--BEGIN
+			--verificar que en la primera fila se referencie el folio fiscal porque en codigo se obtendra
+			SELECT 'UUID'[ColF], 'TimbreFiscalDigital,UUID,0'[Nodo], 'Folio Fiscal'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'FechaFactura'[ColF], 'Comprobante,fecha,1'[Nodo], 'Fecha'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'Moneda'[ColF], 'Comprobante,Moneda,1'[Nodo], 'Moneda'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'MontoFactura'[ColF], 'Comprobante,total,1'[Nodo], 'Monto Total'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'RFCEmisor'[ColF], 'Emisor,rfc,1'[Nodo], 'RFC Emisor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'RFCReceptor'[ColF], 'Receptor,rfc,1'[Nodo], 'RFC Receptor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+			UNION ALL
+			SELECT 'ValidacionSAT'[ColF], 'ValidacionSAT'[Nodo], 'SAT'[Valor] , '---'[Factura], ''[XML], ''[Resultado]
+			UNION ALL
+			SELECT 'MetodoPago'[ColF], 'Comprobante,MetodoPago,0'[Nodo], 'Metodo Pago'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		--END
+		--ELSE
+		--BEGIN
+		--	--verificar que en la primera fila se referencie el folio fiscal porque en codigo se obtendra
+		--	SELECT 'UUID'[ColF], 'TimbreFiscalDigital,UUID,0'[Nodo], 'Folio Fiscal'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'FechaFactura'[ColF], 'Comprobante,fecha,1'[Nodo], 'Fecha'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'Moneda'[ColF], 'Comprobante,Moneda,1'[Nodo], 'Moneda'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'MontoFactura'[ColF], 'Comprobante,total,1'[Nodo], 'Monto Total'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'RFCEmisor'[ColF], 'Emisor,rfc,1'[Nodo], 'RFC Emisor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'RFCReceptor'[ColF], 'Receptor,rfc,1'[Nodo], 'RFC Receptor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		--	UNION ALL
+		--	SELECT 'ValidacionSAT'[ColF], 'ValidacionSAT'[Nodo], 'SAT'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+
+		--END
+	END
+
+	IF @TipoConsulta = 12
+	BEGIN
+		IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Extension = @Extension AND TipoDoc = @TipoDoc AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version)
+		BEGIN
+			INSERT INTO [HNT-Files].dbo.File_CFDI_HNT_TRZ (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version, Emisor, Receptor, MetodoPago, dTotal, FormaPago, dFechaPago)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version, @Emisor, @Receptor, @MetodoPago, @Monto, @FormaPago, @FechaPago)
+
+								
+		END
+		ELSE
+		BEGIN
+			UPDATE [HNT-Files].dbo.File_CFDI_HNT_TRZ
+			SET DocType = @DocType
+			,UUID = @UUID
+			,CardCode = @CardCode
+			,RutaArc = @RutaArc
+			, Archivo = @Archivo
+			, Nombre = @Nombre
+			, Extension = @Extension
+			, TipoDoc = @TipoDoc
+			, nUsuario = @User_ID
+			, dAlta = GETDATE()
+			, Emisor = @Emisor
+			, Receptor = @Receptor
+			, MetodoPago = @MetodoPago
+			, dTotal = @Monto
+			, FormaPago = @FormaPago
+			, dFechaPago = @FechaPago
+
+			WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Extension = @Extension AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+		END
+	END
+
+	--CONSULTA PARA VERIFICAR SI YA EXISTEN ARCHIVOS CARGADOS PREVIAMENTE A LA FACTURA
+	IF @TipoConsulta = 13
+	BEGIN
+		SELECT 
+			nIdArchivo
+			, DocEntry
+			, DocNum
+			, DocType
+			, UUID
+			, CardCode
+			, RutaArc
+			, Archivo
+			, Nombre
+			, Extension
+			, Nombre + ' ' + Extension [NombreCompleto]
+			, TipoDoc
+		FROM 
+			[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+		WHERE 
+			DocEntry = @DocEntry 
+			AND CardCode = @CardCode 
+			AND TipoDoc = @TipoDoc 
+			AND nTipoEmpresa = @TipoEmpresa
+			AND Version = @_Version
+	END
+
+	----SE ELIMINAN LAS FACTURAS PREVIAMENTE YA CARGADAS
+	IF @TipoConsulta = 14
+	BEGIN
+		DELETE
+		[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+		WHERE CardCode = @CardCode AND DocEntry = @DocEntry	
+			AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+	END
+
+	--IF @TipoConsulta = 15
+	--BEGIN
+	--	IF @UserSign IS NOT NULL AND @UserSign>0
+	--	BEGIN
+	--		IF @CardCode <> ''
+	--		BEGIN
+	--			IF @Contabilizacion = 1
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F --FACTURAS
+	--				WHERE CardCode = @CardCode AND DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE CardCode = @CardCode AND DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--			---------------------------------------------------------------------------------------------------------------------------------
+	--			ELSE
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F--FACTURAS
+	--				WHERE CardCode = @CardCode AND CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE CardCode = @CardCode AND CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--				-------------------------------------------------------------------------------------------------------
+
+	--			END
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			IF @Contabilizacion = 1
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F--FACTURAS
+	--				WHERE DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.DocDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--			---------------------------------------------------------------------------------------------------------------------
+	--			ELSE
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F --FACTURAS
+	--				WHERE CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+					
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.CreateDate BETWEEN @Desde AND @Hasta AND UserSign = @UserSign
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--		END
+
+	--	END
+	--	ELSE
+	--	BEGIN
+	--		IF @CardCode <> ''
+	--		BEGIN
+	--			IF @Contabilizacion = 1
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F --FACTURAS
+	--				WHERE CardCode = @CardCode AND DocDate BETWEEN @Desde AND @Hasta
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE CardCode = @CardCode AND DocDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.DocDate BETWEEN @Desde AND @Hasta
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.DocDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--			ELSE
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F --FACTURAS
+	--				WHERE CardCode = @CardCode AND CreateDate BETWEEN @Desde AND @Hasta
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE CardCode = @CardCode AND CreateDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.CreateDate BETWEEN @Desde AND @Hasta
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE CF.CardCode = @CardCode AND O.CreateDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			IF @Contabilizacion = 1
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F --FACTURAS
+	--				WHERE DocDate BETWEEN @Desde AND @Hasta
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F --NOTAS DE REMISION PROVEEDORES
+	--				WHERE DocDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.DocDate BETWEEN @Desde AND @Hasta
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.DocDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--			ELSE
+	--			BEGIN
+	--				SELECT 'FACTURA-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'Factura'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'Factura'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.OPCH F--FACTURAS
+	--				WHERE CreateDate BETWEEN @Desde AND @Hasta
+	--				AND F.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				UNION ALL
+	--				SELECT 'NCREDITO-' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], CASE WHEN F.DocCur = '$' THEN F.DocTotal WHEN F.DocCur = 'USD' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor] ,CardName[NombreProveedor], 'NCredito'[TipoDoc], Comments[Comentarios]
+	--				,ISNULL((SELECT Mostrar FROM SGUV.dbo.tbl_File_CFDI_Encabezado WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = 'NCredito'),0)[N-Carga]
+	--				FROM [SBO-DistPJ].dbo.ORPC F--NOTAS DE REMISION PROVEEDORES
+	--				WHERE CreateDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				ORDER BY CardCode
+
+	--				SELECT 'FACTURA-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+	--				CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.OPCH O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.CreateDate BETWEEN @Desde AND @Hasta
+	--				AND O.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )
+	--				AND CF.TipoDoc = 'Factura'
+	--				UNION ALL		
+	--				SELECT 'NCREDITO-' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + ' ' + CF.Extension[NombreCompleto], CF.TipoDoc
+	--				FROM tbl_File_CFDI CF
+	--				INNER JOIN [SBO-DistPJ].dbo.ORPC O ON CF.DocEntry = O.DocEntry
+	--				WHERE O.CreateDate BETWEEN @Desde AND @Hasta
+	--				AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--				AND CF.TipoDoc = 'NCredito'
+	--			END
+	--		END
+
+	--	END
+	--END
+
+	----METODO PARA CONSULTAR PROVEEDORES QUE TENGAN FACTURAS EN UN RANGO ESTIMADO DE FECHAS
+	--IF @TipoConsulta = 16
+	--BEGIN
+	--	IF @UserSign IS NOT NULL AND @UserSign>0
+	--	BEGIN
+	--		IF @Contabilizacion = 1
+	--		BEGIN
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				, '18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.DocDate BETWEEN @Desde AND @Hasta AND FA.UserSign = @UserSign
+	--			AND FA.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+				
+
+	--			UNION
+
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = FA.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = FA.DocNum AND EN.TipoDoc = 'NCredito'
+	--			WHERE FA.DocDate BETWEEN @Desde AND @Hasta AND FA.UserSign = @UserSign
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = FA.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito'))
+	--			--AND FA.Indicator NOT IN ('CF')
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--			HAVING (COUNT(FC.DocNum)<=0 OR COUNT(EN.DocNum) >0)
+	--			ORDER BY CL.CardName
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.CreateDate BETWEEN @Desde AND @Hasta AND FA.UserSign = @UserSign
+	--			AND FA.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+				
+
+	--			UNION
+
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = FA.DocNum AND FC.TipoDoc = 'NCredito'
+	--			LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = FA.DocNum AND EN.TipoDoc = 'NCredito'
+	--			WHERE FA.CreateDate BETWEEN @Desde AND @Hasta AND FA.UserSign = @UserSign
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = FA.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--			ORDER BY CL.CardName
+	--		END
+	--	END
+	--	ELSE
+	--	BEGIN
+	--		IF @Contabilizacion = 1
+	--		BEGIN
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.DocDate BETWEEN @Desde AND @Hasta
+	--			AND FA.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+
+	--			UNION
+
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.DocDate BETWEEN @Desde AND @Hasta
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = FA.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--			ORDER BY CL.CardName
+	--		END
+	--		ELSE
+	--		BEGIN
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.CreateDate BETWEEN @Desde AND @Hasta
+	--			AND FA.DocNum NOT IN(SELECT BaseRef FROM [SBO-DistPJ].dbo.RPC1 WHERE BaseRef IS NOT NULL )--AND BaseRef = FA.DocNum)
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'Factura'))
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+
+	--			UNION
+
+	--			SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--			CASE
+	--				WHEN CL.CardCode IN('1600','4040','4048','10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--				,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--				ELSE CL.QryGroup43
+	--			END[QryGroup43]
+	--			FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--			INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N' --AND CL.QryGroup43 = 'N'
+	--			WHERE FA.CreateDate BETWEEN @Desde AND @Hasta
+	--			AND EXISTS(SELECT TOP 1 * FROM [SBO-DistPJ].dbo.RPC1 WHERE DocEntry = FA.DocEntry AND (BaseRef IS NULL OR BaseRef='')) --NTC APLICADAS A UNA FACT
+	--			AND ((SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito') IS NULL
+	--			OR	 EXISTS(SELECT TOP 1 DocNum FROM SGUV.dbo.tbl_File_CFDI_Encabezado FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = 'NCredito'))
+	--			--AND FA.Indicator NOT IN ('CF')
+	--			GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--			ORDER BY CL.CardName
+	--		END
+	--	END
+
+	--END
+	
+
+	IF @TipoConsulta = 17
+	BEGIN
+		
+		DECLARE @TipoDoc_Elim varchar(50), @DocEntry_Elim int, @DocNum_Elim int, @UUIDPadre_Elim varchar(max)
+		SELECT @TipoDoc_Elim = TipoDoc, @DocEntry_Elim = DocEntry, @DocNum_Elim = DocNum, @UUIDPadre_Elim = UUID 
+		FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE nIdArchivo = @iArchivo
+
+		IF @TipoDoc_Elim = 'ComplementoPago'
+		BEGIN
+			DELETE finance.File_CFDI_DoctoRelacionado WHERE DocEntry = @DocEntry_Elim AND DocNum = @DocNum_Elim AND UUID_Padre = @UUIDPadre_Elim
+		END
+
+		DELETE [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE nIdArchivo = @iArchivo
+	END
+
+	----METODO PARA CONSULTAR PROVEEDORES QUE TENGAN FACTURAS EN UN RANGO ESTIMADO DE FECHAS
+	--IF @TipoConsulta = 18
+	--BEGIN
+	--	IF @UserSign IS NOT NULL AND @UserSign>0
+	--	BEGIN
+	--		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], CL.QryGroup43
+	--		FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N'
+	--		WHERE FA.UserSign = @UserSign
+	--		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+
+	--		UNION
+
+	--		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], CL.QryGroup43
+	--		FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N'
+	--		WHERE FA.UserSign = @UserSign
+	--		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--		ORDER BY CL.CardName
+	--	END
+	--	ELSE
+	--	BEGIN
+	--		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], CL.QryGroup43
+	--		FROM [SBO-DistPJ].dbo.OPCH FA --FACTURAS
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N'
+	--		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+
+	--		UNION
+
+	--		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], CL.QryGroup43
+	--		FROM [SBO-DistPJ].dbo.ORPC FA --NOTAS DE CREDITO
+	--		INNER JOIN [SBO-DistPJ].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N'
+	--		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup43
+	--		ORDER BY CL.CardName
+	--	END
+	--END
+
+	--CONSULTA PARA VERIFICAR SI YA EXISTEN ARCHIVOS CARGADOS PREVIAMENTE A LA FACTURA
+	IF @TipoConsulta = 19
+	BEGIN
+		--SELECT TOP 1 nIdArchivo, DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, Nombre + ' ' + Extension[NombreCompleto], TipoDoc, Emisor, Receptor
+		--FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND CardCode = @CardCode AND Extension = '.xml' AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+		--UNION ALL
+		--SELECT TOP 1 nIdArchivo, DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, Nombre + ' ' + Extension[NombreCompleto], TipoDoc, Emisor, Receptor
+		--FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND CardCode = @CardCode AND Extension = '.pdf' AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+
+		SELECT
+		(CASE
+			WHEN  Extension = '.pdf' THEN nIdArchivo
+			WHEN  Extension = '.xml'  AND ArchivoPDF IS NOT NULL THEN nIdArchivo 
+		END
+		) nIdArchivo, 
+		(CASE
+			WHEN  Extension = '.pdf' THEN Archivo
+			WHEN  Extension = '.xml'  AND ArchivoPDF IS NOT NULL THEN ArchivoPDF 
+		END
+		) Archivo,
+		(CASE
+			WHEN  Extension = '.pdf' THEN RutaArc
+			WHEN  Extension = '.xml'  AND ArchivoPDF IS NOT NULL THEN RutaArc 
+		END
+		) RutaArc 
+		INTO
+			#T2
+		FROM 
+			[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+		WHERE 
+			DocEntry = @DocEntry 
+			AND DocNum = @DocNum 
+			AND CardCode = @CardCode
+			AND nTipoEmpresa = @TipoEmpresa 
+			AND Version = @_Version 
+
+
+		SELECT TOP 1 
+			nIdArchivo
+			, DocEntry
+			, DocNum
+			, DocType
+			, UUID
+			, CardCode
+			, RutaArc
+			, Archivo
+			, Nombre
+			, Extension
+			, Nombre + Extension[NombreCompleto]
+			, TipoDoc
+			, Emisor
+			, Receptor
+		FROM 
+			[HNT-Files].dbo.File_CFDI_HNT_TRZ
+		WHERE 
+			DocEntry = @DocEntry 
+			AND DocNum = @DocNum 
+			AND CardCode = @CardCode
+			AND nTipoEmpresa = @TipoEmpresa 
+			AND Version = @_Version   
+			and Extension = '.xml'
+		UNION ALL
+		SELECT TOP 1 
+			( SELECT #T2.nIdArchivo FROM #T2 WHERE #T2.nIdArchivo IS NOT NULL)nIdArchivo
+			, DocEntry
+			, DocNum
+			, DocType
+			, UUID
+			, CardCode
+			, ( SELECT #T2.RutaArc FROM #T2 WHERE #T2.RutaArc IS NOT NULL)RutaArc
+			, ( SELECT #T2.Archivo FROM #T2 WHERE #T2.Archivo IS NOT NULL)Archivo
+			, Nombre
+			, '.pdf'
+			, Nombre + '.pdf'[NombreCompleto]
+			, TipoDoc
+			, Emisor
+			, Receptor
+		FROM 
+			[HNT-Files].dbo.File_CFDI_HNT_TRZ
+		WHERE 
+			DocEntry = @DocEntry 
+			AND DocNum = @DocNum 
+			AND CardCode = @CardCode
+			AND nTipoEmpresa = @TipoEmpresa 
+			AND Version = @_Version 
+		drop table #T2
+	END
+
+	--SE VALIDA EL TIPO DE MONEDA Y SE DEVUELVE EL VALOR SI ES CORRECTO O NO
+	IF @TipoConsulta = 20
+	BEGIN
+		IF @MonedaFactura = 'MXN'
+		BEGIN
+			IF UPPER(@MonedaXML) IN('MXN','MXP', 'MNX','PESO MEXICANO', 'PESOS', 'PESOS MEXICANOS', 'M.N.', 'NACIONAL', '', 'MEXICANA', '$', 'MONEDA NACIONAL', 'MN')
+			BEGIN
+				SELECT 'SI'[Respuesta]
+			END
+			ELSE
+			BEGIN
+				SELECT 'NO'[Respuesta]
+			END
+		END
+		ELSE IF @MonedaFactura = 'USD'
+		BEGIN
+			IF UPPER(@MonedaXML) IN('USD','DÓLARES', 'DOLARES')
+			BEGIN
+				SELECT 'SI'[Respuesta]
+			END
+			ELSE
+			BEGIN
+				SELECT 'NO'[Respuesta]
+			END
+		END
+	END
+
+	--SE INSERTA O ELIMINA
+	IF @TipoConsulta = 21
+	BEGIN
+		IF @_Version IS NULL
+			SET @_Version = 'A'
+
+		IF @CargaNueva = 1
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM finance.File_CFDI_Encabezado WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND TipoDoc=@TipoDoc AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version)
+			BEGIN
+				INSERT INTO finance.File_CFDI_Encabezado (DocEntry, DocNum, TipoDoc, Mostrar, nTipoEmpresa, Version)
+											  VALUES (@DocEntry, @DocNum, @TipoDoc, 1, @TipoEmpresa, @_Version)
+			END
+		END
+		ELSE IF @CargaNueva = 0
+		BEGIN
+			DELETE finance.File_CFDI_Encabezado WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND TipoDoc=@TipoDoc AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+		END
+		
+	END
+
+	--NUEVO COMPARATIVO SAT VS SAP
+	IF @TipoConsulta = 22
+	BEGIN
+		SELECT
+			A.Estatus
+			, ISNULL(A.EfectoComprobante,'')[Efecto comprobante]
+			, A.UUID
+			, FORMAT(A.Fecha, 'yyyy-MM-dd') [Fecha SAT]
+			, A.UsoCFDI
+			, A.EmisorRFC
+			, A.Proveedor
+			, A.emisorRegimen
+			, A.Conceptos
+			, A.Monto
+			, A.FormaPago
+			, A.Moneda
+			, A.MetodoPago
+			, B.sOCSAP
+		FROM finance.[CFDISAT] A
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ B  ON A.UUID = B.UUID COLLATE DATABASE_DEFAULT and  B.Extension = '.xml' 
+		WHERE 
+			CAST(Fecha AS DATE) BETWEEN CAST(@Desde AS DATE) AND CAST(@Hasta AS DATE)
+			and A.Monto <> 0
+			and ISNULL(B.sFacturaSAP, '') = ''
+	END
+
+	--IF @TipoConsulta = 22
+	--BEGIN
+	--	SELECT 
+	--		A.Estatus
+	--		, ISNULL(A.EfectoComprobante,'')[Efecto comprobante]
+	--		, A.UUID
+	--		, A.Fecha [Fecha SAT]
+	--		, A.UsoCFDI
+	--		, A.EmisorRFC
+	--		, A.Proveedor
+	--		, A.emisorRegimen
+	--		, A.Conceptos
+	--		, A.Monto
+	--		, A.FormaPago
+	--		, A.MetodoPago
+	--	FROM finance.[CFDISAT] A
+	--	WHERE 
+	--		CAST(Fecha AS DATE) BETWEEN CAST(@Desde AS DATE) AND CAST(@Hasta AS DATE)
+	--		and A.Monto <> 0
+	--END
+
+	IF @TipoConsulta = 23
+	BEGIN
+		IF EXISTS (SELECT * FROM [finance].[CFDISAT] WHERE MONTH(Fecha) = @Mes AND YEAR(Fecha) = @Anho)
+			SELECT 'TRUE' R
+		ELSE
+			SELECT 'FALSE' R
+	END
+
+	IF @TipoConsulta = 24
+	BEGIN
+		DELETE FROM [finance].[CFDISAT] WHERE MONTH(Fecha) = @Mes AND YEAR(Fecha) = @Anho
+	END
+
+	--IF @TipoConsulta = 25
+	--BEGIN
+	--	SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+	--	CASE
+	--		WHEN CL.CardCode IN('1600','4040','4048', '10082','10758','15968','15969','15985','15987','15990','15998','16000','16002','18768'
+	--		,'18781','18797','18806','20462','40040','10082','18785','18852', '15995','15989','18754','18796','18857') THEN 'Y' 
+	--		ELSE CL.QryGroup43
+	--	END[QryGroup43]
+	--	FROM [SBO-DistPJ].dbo.OCRD CL 
+	--	WHERE CL.CardCode = @CardCode AND CL.CardType = 'S' AND CL.frozenFor = 'N'
+
+	--	IF @TipoDoc = 'Factura'
+	--	BEGIN
+	--		SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--		/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--		, P.DocTotalFC, 'Factura'[TipoDoc], 
+	--		CASE
+	--			WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--			WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--		END[NoDeducible] 
+	--		,CASE
+	--			WHEN DocCur = '$' THEN 'MXN'
+	--			WHEN DocCur = 'USD' THEN 'USD'	
+	--		END[Moneda]
+	--		FROM [SBO-DistPJ].dbo.OPCH P --FACTURAS
+	--		LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'Factura' 
+	--		LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'Factura' 
+	--		WHERE P.DocEntry = @DocEntry
+	--	END
+	--	ELSE IF @TipoDoc = 'NCredito'
+	--	BEGIN
+	--		SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = '$' THEN P.DocTotal WHEN DocCur = 'USD' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], 
+	--		/*'SCP131003ITA'*/'DPJ001122MA2'[RFCReceptor], 'SERVICIOS CORPORATIVOS PJ SA DE CV'[NombreReceptor] 
+	--		, P.DocTotalFC, 'NCredito'[TipoDoc], 
+	--		CASE
+	--			WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NULL THEN 'N'
+	--			WHEN (SELECT TOP 1 AcctCode FROM [SBO-DistPJ].dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = '6110-069-000') IS NOT NULL THEN 'Y'
+	--		END[NoDeducible]
+	--		,CASE
+	--			WHEN DocCur = '$' THEN 'MXN'
+	--			WHEN DocCur = 'USD' THEN 'USD'	
+	--		END[Moneda]
+	--		FROM [SBO-DistPJ].dbo.ORPC P--NOTAS DE CREDITO PROVEEDORES
+	--		LEFT JOIN SGUV.dbo.tbl_File_CFDI FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = 'NCredito'
+	--		LEFT JOIN SGUV.dbo.tbl_File_CFDI_Encabezado EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = 'NCredito'
+	--		WHERE P.DocEntry = @DocEntry
+	--	END
+	--END
+
+	--IF @TipoConsulta = 26 --CONSULTA LOS XML QUE TIENEN EL UUID VACIO PERO QUE SEAN ARCHIVOS DE NOMBRE UNICOS
+	--BEGIN
+	--	SELECT Nombre + Extension[Nombre], COUNT(*)[N] 
+	--	INTO #NOMBRES
+	--	FROM SGUV.dbo.tbl_File_CFDI 
+	--	WHERE UUID = '' AND Extension = '.xml'
+	--	GROUP BY Nombre, Extension
+	--	having COUNT(*)<=1
+	--	ORDER BY Nombre
+
+	--	SELECT Nombre + Extension[NombreCompleto], Archivo FROM SGUV.dbo.tbl_File_CFDI WHERE Nombre + Extension IN(SELECT Nombre FROM #NOMBRES) ORDER BY DocNum
+
+	--	DROP TABLE #NOMBRES
+	--END
+
+	IF @TipoConsulta = 27 --INSERTA ARCHIVOS XML PARA EL MODULO DE JOL 
+	BEGIN		
+		IF UPPER(@Extension) = '.XML'
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+			BEGIN
+				INSERT INTO [HNT-Files].dbo.File_CFDI_HNT_TRZ (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version, Emisor, Receptor, MetodoPago, dTotal)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A', @Emisor, @Receptor, @MetodoPago, @Monto)
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'				
+			END
+		END
+		ELSE IF UPPER(@Extension) = '.PDF' AND ISNULL(@UUID,'') <> ''
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+			BEGIN
+				INSERT INTO [HNT-Files].dbo.File_CFDI_HNT_TRZ (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A')
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'			
+			END
+		END
+		ELSE IF UPPER(@Extension) = '.PDF' AND ISNULL(@UUID,'') = ''
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension)
+			BEGIN
+				INSERT INTO [HNT-Files].dbo.File_CFDI_HNT_TRZ (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A')
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'			
+			END
+		END
+	END
+
+	--IF @TipoConsulta = 28 --SE CONSULTAN LOS XML QUE NO EXISTEN EN LA TABLA DE ARCHIVOS BINARIOS
+	--BEGIN
+	--	SELECT P2.DocEntry, P2.DocNum[NoFactura], P2.DocType, P2.UUID, P2.CardCode[CodigoProveedor], Ruta[RutaArc],  
+	--	CASE WHEN ObjType = 18 THEN 'Factura' WHEN ObjType = 19 THEN 'NCredito' END[TipoDoc]
+	--	,268[nUsuario], GETDATE()[dAlta], DocCreate, DocDate
+	--	FROM SGUV.dbo.CFDI_Proveedores2 P2 WHERE P2.UUID IS NOT NULL -- FACTURAS Y NC CON XML
+	--	AND ISNULL(P2.UUID,'') NOT IN(SELECT ISNULL(UUID,'') FROM tbl_File_CFDI WHERE nTipoEmpresa = @TipoEmpresa)
+	--END
+
+	--IF @TipoConsulta = 29 --SE INSERTAN LOS XML EN UNA SEGUNDA TABLA PARA DESPUES MIGRARLA A LA tbl_File_CFDI 
+	--BEGIN
+	--	INSERT INTO tbl_File_CFDI2 (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa)
+	--						VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa)						
+	--END
+
+	----SE REALIZA LA CONSULTA DE PROVEEDORES DENTRO DEL RANGO ESPECIFICO----
+	IF @TipoConsulta = 30
+	BEGIN		
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+		CL.QryGroup31 [QryGroup43]
+		FROM /*sap.VW_OPCH*/SBOCTRZ.dbo.OPCH FA 
+		INNER JOIN [' + @BD + '].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = ''S'' AND CL.frozenFor = ''N'' 
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE FA.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE 
+			SET @SQLString += ' WHERE FA.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND FA.UserSign = @UserSign'
+					
+		SET @SQLString += ' AND FA.DocNum NOT IN(SELECT BaseRef FROM /*sap.VW_RPC1*/SBOCTRZ.dbo.RPC1 WHERE BaseRef IS NOT NULL )
+		AND ((SELECT TOP 1 DocNum FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''Factura'' AND FI.nTipoEmpresa = @TipoEmpresa /*AND FI.Version COLLATE DATABASE_DEFAULT = FA.Version*/) IS NULL
+		OR	 EXISTS(SELECT TOP 1 DocNum FROM [finance].[File_CFDI_Encabezado] FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''Factura'' AND FI.nTipoEmpresa = @TipoEmpresa /*AND FI.Version COLLATE DATABASE_DEFAULT = FA.Version*/))
+		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup31
+
+		UNION
+
+		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+		CL.QryGroup31 [QryGroup43]
+		FROM /*sap.VW_ORPC*/SBOCTRZ.dbo.ORPC FA 
+		INNER JOIN [' + @BD + '].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = ''S'' AND CL.frozenFor = ''N'' --AND CL.QryGroup43 = ''N''
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = FA.DocNum AND FC.TipoDoc = ''NCredito'' AND FC.nTipoEmpresa = @TipoEmpresa /*AND FC.Version COLLATE DATABASE_DEFAULT = FA.Version*/
+		LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = FA.DocNum AND EN.TipoDoc = ''NCredito'' AND EN.nTipoEmpresa = @TipoEmpresa /*AND EN.Version COLLATE DATABASE_DEFAULT = FA.Version*/
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE FA.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE 
+			SET @SQLString += ' WHERE FA.CreateDate BETWEEN @Desde AND @Hasta '
+		
+		IF @UserSign IS NOT NULL AND @UserSign>0
+			SET @SQLString += ' AND FA.UserSign = @UserSign'
+					
+		SET @SQLString += ' AND EXISTS(SELECT TOP 1 * FROM /*sap.VW_RPC1*/SBOCTRZ.dbo.RPC1 WHERE DocEntry = FA.DocEntry /*AND Version = FA.Version*/ AND (BaseRef IS NULL OR BaseRef='''')) 
+		AND ((SELECT TOP 1 DocNum FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''NCredito'' AND FI.nTipoEmpresa = @TipoEmpresa /*AND FI.Version COLLATE DATABASE_DEFAULT = FA.Version*/) IS NULL
+		OR	 EXISTS(SELECT TOP 1 DocNum FROM [finance].[File_CFDI_Encabezado] FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''NCredito'' AND FI.nTipoEmpresa = @TipoEmpresa /*AND FI.Version COLLATE DATABASE_DEFAULT = FA.Version*/))
+		--AND FA.Indicator NOT IN (''CF'')
+		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup31
+		--HAVING (COUNT(FC.DocNum)<=0 OR COUNT(EN.DocNum) >0)
+		ORDER BY CL.CardName	
+		'
+		
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde, @Hasta, @UserSign, @BD, @TipoEmpresa;  
+		
+	END
+
+	/****************CONSULTA PARA OBTENER LAS FACTURAS DE UN PROVEEDOR PARA HACER VALIDACION DE CFDI XML*************/
+	IF @TipoConsulta = 31
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString = N'
+			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = ''$'' THEN P.DocTotal WHEN DocCur = ''USD'' THEN P.DocTotalFC END[MontoFactura],
+			P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], P.CardName[NombreEmisor],
+			''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] 
+			, P.DocTotalFC, ''Factura''[TipoDoc], 
+			CASE
+				WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NULL THEN ''N''
+				WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NOT NULL THEN ''Y''
+			END[NoDeducible] 
+			,CASE
+				WHEN DocCur = ''$'' THEN ''MXN''
+				WHEN DocCur = ''USD'' THEN ''USD''	
+			END[Moneda]
+			,''A''[Version]/*P.Version*/
+			FROM /*sap.VW_OPCH*/SBOCTRZ.dbo.OPCH P 
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''Factura'' AND FC.nTipoEmpresa = @TipoEmpresa /*AND FC.Version COLLATE DATABASE_DEFAULT = P.Version*/
+			LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''Factura'' AND EN.nTipoEmpresa = @TipoEmpresa /*AND EN.Version COLLATE DATABASE_DEFAULT = P.Version*/
+			'
+			IF @Contabilizacion = 1
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta '
+			ELSE 
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta '
+
+			IF @UserSign IS NOT NULL AND @UserSign > 0
+				SET @SQLString += ' AND P.UserSign = @UserSign '
+
+			
+			SET @SQLString += 'AND P.DocNum NOT IN(SELECT BaseRef FROM /*sap.VW_RPC1*/SBOCTRZ.dbo.RPC1 WHERE BaseRef IS NOT NULL )
+			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+				
+			UNION 
+
+			SELECT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = ''$'' THEN P.DocTotal WHEN DocCur = ''USD'' THEN P.DocTotalFC END[MontoFactura], 
+			P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], P.CardName[NombreEmisor],
+			''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] 
+			, P.DocTotalFC, ''NCredito''[TipoDoc], 
+			CASE
+				WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NULL THEN ''N''
+				WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NOT NULL THEN ''Y''
+			END[NoDeducible]
+			,CASE
+				WHEN DocCur = ''$'' THEN ''MXN''
+				WHEN DocCur = ''USD'' THEN ''USD''	
+			END[Moneda]
+			,''A''[Version]/*P.Version*/
+			FROM /*sap.VW_ORPC*/SBOCTRZ.dbo.ORPC P
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''NCredito'' AND FC.nTipoEmpresa = @TipoEmpresa /*AND FC.Version COLLATE DATABASE_DEFAULT = P.Version*/
+			LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''NCredito'' AND EN.nTipoEmpresa = @TipoEmpresa /*AND EN.Version COLLATE DATABASE_DEFAULT = P.Version*/
+			'
+			IF @Contabilizacion = 1
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta '
+			ELSE 
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta '
+
+			IF @UserSign IS NOT NULL AND @UserSign > 0
+				SET @SQLString += ' AND P.UserSign = @UserSign '
+
+			SET @SQLString += ' AND EXISTS(SELECT TOP 1 * FROM /*sap.VW_RPC1*/SBOCTRZ.dbo.RPC1 WHERE DocEntry = P.DocEntry /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/ AND (BaseRef IS NULL OR BaseRef=''''))
+			AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL)
+			'
+			SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @CardCode varchar(50), @TipoEmpresa int'; 
+			EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @CardCode = @CardCode, @TipoEmpresa = @TipoEmpresa;   
+		END
+
+	IF @TipoConsulta = 32
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT ''FACTURA-'' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], 
+		CASE WHEN F.DocCur = ''$'' THEN F.DocTotal WHEN F.DocCur = ''USD'' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor],
+		CardName[NombreProveedor], ''Factura''[TipoDoc], Comments[Comentarios]
+		,ISNULL((SELECT Mostrar FROM [finance].[File_CFDI_Encabezado] WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = ''Factura'' AND nTipoEmpresa = @TipoEmpresa /*AND Version COLLATE DATABASE_DEFAULT = F.Version*/),0)[N-Carga]
+		,''A'' Version
+		FROM /*sap.VW_OPCH*/SBOCTRZ.dbo.OPCH F
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE F.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString += ' WHERE F.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND F.UserSign = @UserSign'
+		
+		SET @SQLString += '
+		/*AND F.DocNum NOT IN(SELECT BaseRef FROM sap.VW_RPC1 WHERE BaseRef IS NOT NULL )*/
+		UNION ALL
+		SELECT ''NCREDITO-'' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], 
+		CASE WHEN F.DocCur = ''$'' THEN F.DocTotal WHEN F.DocCur = ''USD'' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor],
+		CardName[NombreProveedor], ''NCredito''[TipoDoc], Comments[Comentarios]
+		,ISNULL((SELECT Mostrar FROM [finance].[File_CFDI_Encabezado] WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = ''NCredito'' AND nTipoEmpresa= @TipoEmpresa /*AND Version COLLATE DATABASE_DEFAULT = F.Version*/),0)[N-Carga]
+		,''A'' Version
+		FROM /*sap.VW_ORPC*/SBOCTRZ.dbo.ORPC F 
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString += ' WHERE CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND F.UserSign = @UserSign'
+
+		SET @SQLString += '
+		/*AND EXISTS(SELECT TOP 1 * FROM sap.VW_RPC1 WHERE DocEntry = F.DocEntry AND (BaseRef IS NULL OR BaseRef=''''))*/ 
+		ORDER BY CardCode '
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+
+		/*********************************************SE CONSTRUYE LA SEGUNDA CONSULTA*************************************************/
+		SET @SQLString1  = N'
+		SELECT ''FACTURA-'' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+		CF.Nombre + '' '' + CF.Extension[NombreCompleto], CF.TipoDoc
+		,CF.Version
+		FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ CF
+		INNER JOIN /*sap.VW_OPCH*/SBOCTRZ.dbo.OPCH O ON CF.DocEntry = O.DocEntry /*AND CF.Version COLLATE DATABASE_DEFAULT = O.Version*/
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString1 += ' WHERE O.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString1 += ' WHERE O.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @SQLString1 += ' AND O.UserSign = @UserSign'
+		
+		SET @SQLString1  += N'
+		/*AND O.DocNum NOT IN(SELECT BaseRef FROM sap.VW_RPC1 WHERE BaseRef IS NOT NULL )*/
+		AND CF.TipoDoc = ''Factura'' AND nTipoEmpresa= @TipoEmpresa
+		UNION ALL		
+		SELECT ''NCREDITO-'' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, CF.Nombre + '' '' + CF.Extension[NombreCompleto], CF.TipoDoc
+		,CF.Version
+		FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ CF
+		INNER JOIN /*sap.VW_ORPC*/SBOCTRZ.dbo.ORPC O ON CF.DocEntry = O.DocEntry /*AND CF.Version COLLATE DATABASE_DEFAULT = O.Version*/
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString1 += ' WHERE O.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString1 += ' WHERE O.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @SQLString1 += ' AND O.UserSign = @UserSign'
+
+		SET @SQLString1  += N'
+		/*AND EXISTS(SELECT TOP 1 * FROM sap.VW_RPC1 WHERE DocEntry = O.DocEntry AND (BaseRef IS NULL OR BaseRef=''''))*/
+		AND CF.TipoDoc = ''NCredito'' AND nTipoEmpresa= @TipoEmpresa
+		'
+		SET @ParmDefinition1 = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString1, @ParmDefinition1, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+	END
+
+	IF @TipoConsulta = 33
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+		CL.QryGroup31 [QryGroup43]
+		FROM [' + @BD + '].dbo.OCRD CL 
+		WHERE CL.CardCode = @CardCode AND CL.CardType = ''S'' AND CL.frozenFor = ''N''
+		'
+		SET @ParmDefinition = N'@CardCode varchar(100)'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @CardCode = @CardCode;
+		 
+		SET @SQLString1  = N'
+		IF @TipoDoc = ''Factura''
+		BEGIN
+			SELECT DISTINCT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = ''$'' THEN P.DocTotal WHEN DocCur = ''USD'' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], P.CardName[NombreEmisor], ''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] , P.DocTotalFC, ''Factura''[TipoDoc], CASE WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NULL THEN ''N'' WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NOT NULL THEN ''Y'' END[NoDeducible] ,CASE WHEN DocCur = ''$'' THEN ''MXN'' WHEN DocCur = ''USD'' THEN ''USD'' END[Moneda],''A''[Version]/*P.Version*/ FROM /*sap.VW_OPCH*/SBOCTRZ.dbo.OPCH P LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''Factura'' AND FC.nTipoEmpresa = @TipoEmpresa /*AND FC.Version COLLATE DATABASE_DEFAULT = P.Version*/ LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''Factura'' AND EN.nTipoEmpresa = @TipoEmpresa /*AND EN.Version COLLATE DATABASE_DEFAULT = P.Version*/ WHERE P.DocEntry = @DocEntry /*AND P.Version = @_Version*/
+		END
+		ELSE IF @TipoDoc = ''NCredito''
+		BEGIN
+			SELECT DISTINCT P.NumAtCard, P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCur = ''$'' THEN P.DocTotal WHEN DocCur = ''USD'' THEN P.DocTotalFC END[MontoFactura], P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], P.LicTradNum[RFCEmisor], P.CardName[NombreEmisor], ''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] , P.DocTotalFC, ''NCredito''[TipoDoc], CASE WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NULL THEN ''N'' WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NOT NULL THEN ''Y'' END[NoDeducible],CASE WHEN DocCur = ''$'' THEN ''MXN'' WHEN DocCur = ''USD'' THEN ''USD''	END[Moneda],''A''[Version]/*P.Version*/ FROM /*sap.VW_ORPC*/SBOCTRZ.dbo.ORPC P	LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''NCredito'' AND FC.nTipoEmpresa = @TipoEmpresa /*AND FC.Version COLLATE DATABASE_DEFAULT = P.Version*/ LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''NCredito'' AND EN.nTipoEmpresa = @TipoEmpresa /*AND EN.Version COLLATE DATABASE_DEFAULT = P.Version*/ WHERE P.DocEntry = @DocEntry /*AND P.Version = @_Version*/
+		END '
+		SET @ParmDefinition1 = N'@TipoDoc varchar(50), @DocEntry int, @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString1, @ParmDefinition1, @TipoDoc, @DocEntry, @TipoEmpresa;
+	END
+
+	/*******************************************APARTIR DE ACA ES CONSULTA DE CFDI DE PAGOS*******************************************************/
+
+	IF @TipoConsulta = 34
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+		CASE
+			WHEN CL.CardCode IN(''9999999'') THEN ''Y'' 
+			ELSE CL.QryGroup31
+		END[QryGroup43]
+		FROM [' + @BD + '].dbo.OVPM FA 
+		INNER JOIN [' + @BD + '].dbo.OCRD CL ON FA.CardCode = CL.CardCode AND CL.CardType = ''S'' AND CL.frozenFor = ''N'' 
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE FA.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE 
+			SET @SQLString += ' WHERE FA.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND FA.UserSign = @UserSign'
+					
+		SET @SQLString += ' 
+		AND ((SELECT TOP 1 DocNum FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''ComplementoPago'' AND FI.nTipoEmpresa = @TipoEmpresa AND FI.Version /*COLLATE DATABASE_DEFAULT*/ = ''A''/*FA.Version*/) IS NULL
+		OR	 EXISTS(SELECT TOP 1 DocNum FROM [finance].[File_CFDI_Encabezado] FI WHERE FI.DocNum = FA.DocNum AND TipoDoc = ''ComplementoPago'' AND FI.nTipoEmpresa = @TipoEmpresa AND FI.Version /*COLLATE DATABASE_DEFAULT*/ = ''A''/*FA.Version*/))
+
+		AND ISNULL((SELECT  
+		SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) 
+		FROM [SBOCTRZ].dbo.VPM2 F20 
+		LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+		WHERE F20.DocNum = FA.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		),0)>0
+
+		GROUP BY CL.CardCode, CL.CardName, CL.QryGroup31
+
+		
+		ORDER BY CL.CardName
+		'
+		
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+	END
+
+	IF @TipoConsulta = 35
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString = N'
+			SELECT /*P.NumAtCard,*/ P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura], CASE WHEN DocCurr = ''$'' THEN P.DocTotal WHEN DocCurr = ''USD'' THEN P.DocTotalFC END[MontoFactura],
+			P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor], /*P.LicTradNum[RFCEmisor],*/ 
+			''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] 
+			, P.DocTotalFC, ''ComplementoPago''[TipoDoc], 
+			CASE
+				/*WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NULL THEN ''N''
+				WHEN (SELECT TOP 1 AcctCode FROM /*sap.VW_PCH1*/SBOCTRZ.dbo.PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' /*AND Version COLLATE DATABASE_DEFAULT = P.Version*/) IS NOT NULL THEN ''Y''
+				*/
+				WHEN 1=1 THEN ''N''
+			END[NoDeducible] 
+			,CASE
+				WHEN DocCurr = ''$'' THEN ''MXN''
+				WHEN DocCurr = ''USD'' THEN ''USD''	
+			END[Moneda]
+			/*,P.Version*/
+			,''A''[Version]
+			FROM [' + @BD + '].dbo.OVPM P 
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''ComplementoPago'' AND FC.nTipoEmpresa = @TipoEmpresa AND FC.Version /*COLLATE DATABASE_DEFAULT = P.Version*/ = ''A''
+			LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''ComplementoPago'' AND EN.nTipoEmpresa = @TipoEmpresa AND EN.Version /*COLLATE DATABASE_DEFAULT = P.Version*/ = ''A''
+			'
+			IF @Contabilizacion = 1
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.DocDate BETWEEN @Desde AND @Hasta '
+			ELSE 
+				SET @SQLString += ' WHERE P.CardCode = @CardCode AND P.CreateDate BETWEEN @Desde AND @Hasta '
+
+			IF @UserSign IS NOT NULL AND @UserSign > 0
+				SET @SQLString += ' AND P.UserSign = @UserSign '			
+			
+			--SET @SQLString += ' AND (FC.DocNum IS NULL OR EN.DocNum IS NOT NULL) '	
+			SET @SQLString += ' 
+			AND ((SELECT TOP 1 DocNum FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ FI WHERE FI.DocNum = P.DocNum AND TipoDoc = ''ComplementoPago'' AND FI.nTipoEmpresa = @TipoEmpresa AND FI.Version /*COLLATE DATABASE_DEFAULT*/ = ''A''/*FA.Version*/) IS NULL
+			OR	 EXISTS(SELECT TOP 1 DocNum FROM [finance].[File_CFDI_Encabezado] FI WHERE FI.DocNum = P.DocNum AND TipoDoc = ''ComplementoPago'' AND FI.nTipoEmpresa = @TipoEmpresa AND FI.Version /*COLLATE DATABASE_DEFAULT*/ = ''A''/*FA.Version*/))
+
+			AND ISNULL((SELECT  
+			SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) 
+			FROM [SBOCTRZ].dbo.VPM2 F20 
+			LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+			WHERE F20.DocNum = P.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+			),0)>0
+			'
+			
+			SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @CardCode varchar(50), @TipoEmpresa int'; 
+			EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @CardCode = @CardCode, @TipoEmpresa = @TipoEmpresa;   
+	END
+
+	IF @TipoConsulta = 36
+	BEGIN
+		SELECT TOP 1 nIdArchivo, DocEntry, DocNum, UUID, CardCode, Nombre, Extension, TipoDoc, nTipoEmpresa, Version FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ]
+		WHERE UUID = @UUID
+	END
+
+	IF @TipoConsulta = 37
+	BEGIN
+		DELETE finance.File_CFDI_DoctoRelacionado
+		WHERE DocEntry = @DocEntry AND TipoDoc = @TipoDoc AND nTipoEmpresa = @TipoEmpresa and Version = @_Version
+		AND UUID_Padre = @UUIDPadre
+	END
+
+	IF @TipoConsulta = 38
+	BEGIN
+		INSERT INTO finance.File_CFDI_DoctoRelacionado (DocEntry, DocNum, TipoDoc, UUID_Padre, UUID, MetodoPago, Moneda, NoParcialidad, ImportePagado, RelacionFP, nTipoEmpresa, Version)
+													     VALUES (@DocEntry, @DocNum, @TipoDoc, @UUIDPadre, @UUID, @MetodoPago, @Moneda, @NoParcialidad, @DocTotal, @Relacion, @TipoEmpresa, @_Version)
+	END
+
+	IF @TipoConsulta = 39
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT ''ComplementoPago-'' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, DocDate[FechaFactura], 
+		CASE WHEN F.DocCurr = ''$'' THEN F.DocTotal WHEN F.DocCurr = ''USD'' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor],
+		CardName[NombreProveedor], ''ComplementoPago''[TipoDoc], Comments[Comentarios]
+		,ISNULL((SELECT Mostrar FROM [finance].[File_CFDI_Encabezado] WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = ''ComplementoPago'' AND nTipoEmpresa = @TipoEmpresa AND Version /*COLLATE DATABASE_DEFAULT = F.Version*/=''A''),0)[N-Carga]
+		,''A''[Version]
+		--,ISNULL((SELECT  
+		--SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		--LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		--LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml''
+		--WHERE F20.DocNum = F.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		--),0)[Mostrar]
+		FROM [SBOCTRZ].dbo.OVPM F
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE F.CardCode IS NOT NULL AND F.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString += ' WHERE F.CardCode IS NOT NULL AND F.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND F.UserSign = @UserSign'
+		
+		
+		SET @SQLString += ' AND ISNULL((SELECT  
+		SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+		WHERE F20.DocNum = F.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		),0)>0'
+
+		SET @SQLString += '
+	
+		ORDER BY CardCode '
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+
+		/*********************************************SE CONSTRUYE LA SEGUNDA CONSULTA*************************************************/
+		SET @SQLString1  = N'
+		SELECT ''ComplementoPago-'' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc, CF.Archivo, CF.Nombre, CF.Extension, 
+		CF.Nombre + '' '' + CF.Extension[NombreCompleto], CF.TipoDoc
+		,CF.Version
+		FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ CF
+		INNER JOIN [SBOCTRZ].dbo.OVPM O ON CF.DocEntry = O.DocEntry AND CF.Version /*COLLATE DATABASE_DEFAULT = O.Version*/ = ''A''
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString1 += ' WHERE O.CardCode IS NOT NULL AND O.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString1 += ' WHERE O.CardCode IS NOT NULL AND O.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @SQLString1 += ' AND O.UserSign = @UserSign'
+		
+		SET @SQLString1  += N'		
+		AND CF.TipoDoc = ''ComplementoPago'' AND nTipoEmpresa= @TipoEmpresa		
+		'
+		SET @SQLString1 += ' AND ISNULL((SELECT  
+		SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+		WHERE F20.DocNum = O.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		),0)>0
+		ORDER BY CF.DocEntry
+		'
+
+		
+		SET @ParmDefinition1 = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString1, @ParmDefinition1, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+	END
+
+	IF @TipoConsulta = 40
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT CL.CardCode[Codigo], CL.CardName[Nombre], 
+		CASE
+			WHEN CL.CardCode IN(''9999999'') THEN ''Y'' 
+			ELSE CL.QryGroup31
+		END[QryGroup43]
+		FROM [' + @BD + '].dbo.OCRD CL 
+		WHERE CL.CardCode = @CardCode AND CL.CardType = ''S'' AND CL.frozenFor = ''N''
+		'
+		SET @ParmDefinition = N'@CardCode varchar(100)'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @CardCode = @CardCode;
+		 
+		SET @SQLString1  = N'
+		IF @TipoDoc = ''ComplementoPago''
+		BEGIN
+			SELECT DISTINCT /*P.NumAtCard,*/ P.DocEntry, P.DocNum[NoFactura], P.DocType, P.DocDate[FechaFactura]
+			, CASE WHEN DocCurr = ''$'' THEN P.DocTotal WHEN DocCurr = ''USD'' THEN P.DocTotalFC END[MontoFactura]
+			, P.CardCode[CodigoProveedor] ,P.CardName[NombreProveedor]/*, P.LicTradNum[RFCEmisor]*/
+			, ''CTZ190712MB1''[RFCReceptor], ''COMERCIALIZADORA TR ZONE S.A. DE C.V.''[NombreReceptor] , P.DocTotalFC
+			, ''ComplementoPago''[TipoDoc]
+			, CASE /*WHEN (SELECT TOP 1 AcctCode FROM sap.VW_PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' AND Version COLLATE DATABASE_DEFAULT = P.Version) IS NULL THEN ''N'' 
+				   WHEN (SELECT TOP 1 AcctCode FROM sap.VW_PCH1 WHERE DocEntry = P.DocEntry AND AcctCode = ''6110-069-000'' AND Version COLLATE DATABASE_DEFAULT = P.Version) IS NOT NULL THEN ''Y'' 
+				   */
+				   WHEN 1=1 THEN ''N''
+			END[NoDeducible] 
+			,CASE WHEN DocCurr = ''$'' THEN ''MXN'' 
+			WHEN DocCurr = ''USD'' THEN ''USD'' END[Moneda]
+			/*,P.Version */
+			,''A''[Version]
+			FROM [' + @BD + '].dbo.OVPM P 
+			LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ FC ON FC.DocNum = P.DocNum AND FC.TipoDoc = ''ComplementoPago'' AND FC.nTipoEmpresa = @TipoEmpresa AND FC.Version /*COLLATE DATABASE_DEFAULT = P.Version*/ = ''A'' 
+			LEFT JOIN [finance].[File_CFDI_Encabezado] EN ON EN.DocNum = P.DocNum AND EN.TipoDoc = ''ComplementoPago'' AND EN.nTipoEmpresa = @TipoEmpresa AND EN.Version /*COLLATE DATABASE_DEFAULT = P.Version*/ = ''A'' 
+			WHERE P.DocEntry = @DocEntry /*AND P.Version = @_Version*/
+		END
+		'
+		SET @ParmDefinition1 = N'@TipoDoc varchar(50), @DocEntry int, @TipoEmpresa int, @_Version nvarchar(50)'; 
+		EXECUTE sp_executesql @SQLString1, @ParmDefinition1, @TipoDoc = @TipoDoc, @DocEntry = @DocEntry, @TipoEmpresa = @TipoEmpresa, @_Version = @_Version;
+	END
+
+	IF @TipoConsulta = 41
+	BEGIN
+		SELECT TOP 100 
+		   [nIdArchivo]
+		  ,[DocEntry]
+		  ,[DocNum]
+		  ,[DocType]
+		  ,[UUID]
+		  ,[CardCode]
+		  --,[RutaArc]
+		  ,[Archivo]
+		  --,[Nombre]
+		  ,[Extension]
+		  ,Nombre + Extension[NombreCompleto]
+		  ,[TipoDoc]
+		  ,[nUsuario]
+		  --,[dAlta]
+		  ,[nTipoEmpresa]
+		  ,[Version]
+		  ,[Emisor]
+		  ,[Receptor]
+		  ,[MetodoPago] 
+		  FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE /*CardCode = '22691' and*/ CAST(dAlta AS DATE) between '2018-10-01' AND '2018-10-10' 
+		  and MetodoPago IS NULL AND Extension = '.xml'
+		  and docentry<>-1
+		  and TipoDoc = 'Factura'
+		  and nTipoEmpresa = 1
+		  and Version = 'A'
+		  ORDER BY dAlta
+	END
+
+	IF @TipoConsulta = 42
+	BEGIN
+		UPDATE [HNT-Files].dbo.File_CFDI_HNT_TRZ 
+		SET Emisor = @Emisor, Receptor = @Receptor, MetodoPago = @MetodoPago, bActualizadoManual = 1
+		WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND TipoDoc = @TipoDoc AND Version = @_Version
+	END
+	--CONSULTA ESTADO CFDI VERSION WEB ANTES CONSULTA 32 FACTURAS
+	IF @TipoConsulta = 43
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @Qry  = N'
+			SELECT 
+				''FACTURA-'' + CAST(F.DocEntry as varchar(50))[ID]
+				, F.DocEntry
+				, CAST(F.DocNum AS VARCHAR(50))[NoFactura]
+				, F.DocType
+				, FORMAT(F.DocDate, ''yyyy-MM-dd'')[FechaFactura]
+				, CASE 
+					WHEN F.DocCur = ''$'' THEN F.DocTotal
+					WHEN F.DocCur = ''USD'' THEN F.DocTotalFC
+					END[MontoFactura]
+				, F.CardCode[CodigoProveedor]
+				, F.CardName[NombreProveedor]
+				, ''Factura''[TipoDoc]
+				, F.Comments[Comentarios]
+				, ISNULL((
+					SELECT A.Mostrar 
+					FROM [finance].[File_CFDI_Encabezado] A 
+					WHERE A.DocEntry = f.DocEntry
+						AND A.DocNum = F.DocNum 
+						AND A.TipoDoc = ''Factura''
+						AND A.nTipoEmpresa = @TipoEmpresa),0)[N-Carga]
+				,''A''Version
+				, O.USER_CODE + '' - '' + O.U_NAME U_NAME
+				, CF.MetodoPago
+				, CF.FormaPago
+				, CF.sRegimenFiscal
+				, FORMAT(CF.dFechaPago, ''yyyy-MM-dd'')dFechaPago
+				, CF.UUID
+			FROM SBOCTRZ.dbo.OPCH F
+				left join [HNT-Files].dbo.[File_CFDI_HNT_TRZ] CF ON CF.DocEntry = F.DocEntry AND CF.Extension = ''.XML''  and CF.TipoDoc LIKE ''%Factura%''
+				LEFT JOIN SBOCTRZ.DBO.OUSR O ON F.userSign = O.USERID
+		'
+		IF @Contabilizacion = 1
+			SET @Qry += ' WHERE F.DocDate BETWEEN FORMAT(@Desde, ''yyyy-MM-dd'') AND FORMAT(@Hasta, ''yyyy-MM-dd'') '
+		ELSE
+			SET @Qry += ' WHERE F.CreateDate BETWEEN FORMAT(@Desde, ''yyyy-MM-dd'') AND FORMAT(@Hasta, ''yyyy-MM-dd'') '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @Qry += ' AND F.UserSign = @UserSign'
+
+		SET @Qry += ' AND ISNULL(F.Indicator, '''') NOT IN (''CF'', ''RF'') '
+
+		SET @Qry += '
+		UNION ALL
+		SELECT 
+			''NCREDITO-'' + CAST(F.DocEntry as varchar(50))[ID]
+			, F.DocEntry
+			, CAST(F.DocNum AS VARCHAR(50))[NoFactura]
+			, F.DocType
+			, FORMAT(F.DocDate, ''yyyy-MM-dd'')[FechaFactura]
+			, CASE 
+				WHEN F.DocCur = ''$'' THEN F.DocTotal
+				WHEN F.DocCur = ''USD'' THEN F.DocTotalFC
+			  END[MontoFactura]
+			, F.CardCode[CodigoProveedor]
+			, F.CardName[NombreProveedor]
+			, ''NCredito''[TipoDoc]
+			, F.Comments[Comentarios]
+			,ISNULL((
+				SELECT A.Mostrar 
+				FROM [finance].[File_CFDI_Encabezado] A
+				WHERE 
+				A.DocEntry = F.DocEntry 
+				AND A.DocNum = F.DocNum 
+				AND A.TipoDoc = ''NCredito''
+				AND A.nTipoEmpresa= @TipoEmpresa),0)[N-Carga]
+			,''A''Version
+			, O.USER_CODE + '' - '' + O.U_NAME U_NAME
+			, CF.MetodoPago
+			, CF.FormaPago
+			, CF.sRegimenFiscal
+			, FORMAT(CF.dFechaPago, ''yyyy-MM-dd'')dFechaPago
+			, CF.UUID
+		FROM SBOCTRZ.dbo.ORPC F 
+			left join [HNT-Files].dbo.[File_CFDI_HNT_TRZ] CF ON CF.DocEntry = F.DocEntry AND CF.Extension = ''.XML'' and CF.TipoDoc = ''NCredito''
+			LEFT JOIN SBOCTRZ.DBO.OUSR O ON F.userSign = O.USERID
+		'
+		IF @Contabilizacion = 1
+			SET @Qry += ' WHERE DocDate BETWEEN FORMAT(@Desde, ''yyyy-MM-dd'') AND FORMAT(@Hasta, ''yyyy-MM-dd'') '
+		ELSE
+			SET @Qry += ' WHERE F.CreateDate BETWEEN FORMAT(@Desde, ''yyyy-MM-dd'') AND FORMAT(@Hasta, ''yyyy-MM-dd'')
+			'
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @Qry += ' AND F.UserSign = @UserSign'
+
+		SET @Qry += ' AND ISNULL(F.Indicator, '''') NOT IN (''CF'', ''RF'') '
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @Qry, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+
+		/*********************************************SE CONSTRUYE LA SEGUNDA CONSULTA*************************************************/
+		SET @Qry1  = N'
+		select 
+			''FACTURA-'' + CAST(A.DocEntry as varchar(50))[ID]
+			, TipoDoc
+			, A.nIdArchivo
+			, A.Extension
+			, A.Nombre + '''' + A.Extension[NombreCompleto]
+		FROM 
+			[HNT-Files].dbo.[File_CFDI_HNT_TRZ] A
+			 join SBOCTRZ.DBO.OPCH B ON A.DocEntry = B.DocEntry AND A.TipoDoc like ''%Factura%'' '
+
+		IF @Contabilizacion = 1
+			SET @Qry1 += ' WHERE B.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @Qry1 += ' WHERE B.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @Qry1 += ' AND B.UserSign = @UserSign '
+		--
+		
+		SET @Qry1  += N'
+		AND nTipoEmpresa= @TipoEmpresa 
+		union all
+		select 
+			''FACTURA-'' + CAST(A.DocEntry as varchar(50))[ID]
+			, TipoDoc
+			, A.nIdArchivo
+			, ''.pdf'' Extension 
+			, A.Nombre + '''' + ''.pdf''[NombreCompleto]
+		FROM 
+			[HNT-Files].dbo.[File_CFDI_HNT_TRZ] A
+			join SBOCTRZ.DBO.OPCH B ON A.DocEntry = B.DocEntry AND A.TipoDoc like ''%Factura%'' '
+		
+		IF @Contabilizacion = 1
+			SET @Qry1 += ' WHERE B.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @Qry1 += ' WHERE B.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @Qry1 += ' AND B.UserSign = @UserSign '
+		--
+		SET @Qry1  += N'
+		AND A.nTipoEmpresa= @TipoEmpresa AND ArchivoPDF is not null
+		UNION ALL
+		select 
+			''NCREDITO-'' + CAST(A.DocEntry as varchar(50))[ID]
+			, TipoDoc
+			, A.nIdArchivo
+			, A.Extension
+			, A.Nombre + '''' + A.Extension[NombreCompleto]
+		FROM 
+			[HNT-Files].dbo.[File_CFDI_HNT_TRZ] A
+			join SBOCTRZ.DBO.ORPC B ON A.DocEntry = B.DocEntry AND A.TipoDoc like ''%NCredito%'' 
+		UNION ALL
+		select 
+			''NCREDITO-'' + CAST(A.DocEntry as varchar(50))[ID]
+			, TipoDoc
+			, A.nIdArchivo
+			, ''.pdf''
+			, A.Nombre + '''' + ''.pdf''[NombreCompleto]
+		FROM 
+			[HNT-Files].dbo.[File_CFDI_HNT_TRZ] A
+			join SBOCTRZ.DBO.ORPC B ON  A.DocEntry = B.DocEntry AND A.TipoDoc like ''%NCredito%''
+			'
+		
+		IF @Contabilizacion = 1
+			SET @Qry1 += ' WHERE B.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @Qry1 += ' WHERE B.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @Qry1 += ' AND B.UserSign = @UserSign '
+
+		SET @Qry1  += N' AND A.nTipoEmpresa= @TipoEmpresa '
+		
+		SET @ParmDefinition1 = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @Qry1, @ParmDefinition1, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+	end
+
+	IF @TipoConsulta = 44
+	BEGIN
+		IF @TipoEmpresa = 1
+			SET @BD = 'SBOCTRZ'--'SBO-DistPJ'
+		ELSE IF @TipoEmpresa = 2
+			SET @BD = 'SBOLOGTRANSP'
+		ELSE IF @TipoEmpresa = 3
+			SET @BD = 'SBOCPEJ'
+		ELSE IF @TipoEmpresa = 4
+			SET @BD = 'SERVCORP'
+		ELSE IF @TipoEmpresa = 5
+			SET @BD = 'SBOSERVIMP'
+
+		SET @SQLString  = N'
+		SELECT ''ComplementoPago-'' + CAST(DocEntry as varchar(50))[ID], DocEntry, DocNum[NoFactura], DocType, FORMAT(DocDate, ''yyyy-MM-dd'')[FechaFactura], 
+		CASE WHEN F.DocCurr = ''$'' THEN F.DocTotal WHEN F.DocCurr = ''USD'' THEN F.DocTotalFC END[MontoFactura], CardCode[CodigoProveedor],
+		CardName[NombreProveedor], ''ComplementoPago''[TipoDoc], Comments[Comentarios]
+		,ISNULL((SELECT Mostrar FROM [finance].[File_CFDI_Encabezado] WHERE DocEntry = F.DocEntry AND DocNum = F.DocNum AND TipoDoc = ''ComplementoPago'' AND nTipoEmpresa = @TipoEmpresa AND Version /*COLLATE DATABASE_DEFAULT = F.Version*/=''C''),0)[N-Carga]
+		,''A''[Version]
+		--,ISNULL((SELECT  
+		--SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		--LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		--LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml''
+		--WHERE F20.DocNum = F.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		--),0)[Mostrar]
+		FROM [SBOCTRZ].dbo.OVPM F
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString += ' WHERE F.CardCode IS NOT NULL AND F.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString += ' WHERE F.CardCode IS NOT NULL AND F.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND @UserSign > 0
+			SET @SQLString += ' AND F.UserSign = @UserSign'
+		
+		
+		SET @SQLString += ' AND ISNULL((SELECT  
+		SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+		WHERE F20.DocNum = F.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		),0)>0'
+
+		SET @SQLString += '
+	
+		ORDER BY CardCode '
+
+		SET @ParmDefinition = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString, @ParmDefinition, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+
+		/*********************************************SE CONSTRUYE LA SEGUNDA CONSULTA*************************************************/
+		SET @SQLString1  = N'
+		SELECT ''ComplementoPago-'' + CAST(CF.DocEntry as varchar(50))[ID], CF.nIdArchivo, CF.DocEntry, CF.DocNum, CF.DocType, CF.CardCode, CF.RutaArc/*, CF.Archivo*/, CF.Nombre, CF.Extension, 
+		CF.Nombre + '' '' + CF.Extension[NombreCompleto], CF.TipoDoc
+		,CF.Version
+		FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] CF
+		INNER JOIN [SBOCTRZ].dbo.OVPM O ON CF.DocEntry = O.DocEntry AND CF.Version /*COLLATE DATABASE_DEFAULT = O.Version*/ = ''A''
+		'
+		IF @Contabilizacion = 1
+			SET @SQLString1 += ' WHERE O.CardCode IS NOT NULL AND O.DocDate BETWEEN @Desde AND @Hasta '
+		ELSE
+			SET @SQLString1 += ' WHERE O.CardCode IS NOT NULL AND O.CreateDate BETWEEN @Desde AND @Hasta '
+
+		IF @UserSign IS NOT NULL AND CAST(@UserSign AS VARCHAR(50))<>'' AND @UserSign > 0
+			SET @SQLString1 += ' AND O.UserSign = @UserSign'
+		
+		SET @SQLString1  += N'		
+		AND CF.TipoDoc = ''ComplementoPago'' AND nTipoEmpresa= @TipoEmpresa		
+		'
+		SET @SQLString1 += ' AND ISNULL((SELECT  
+		SUM(CASE WHEN ISNULL(CF0.MetodoPago,''PPD'') = ''PPD'' THEN 1 ELSE 0 END) FROM [SBOCTRZ].dbo.VPM2 F20 --ON F2.DocNum = F.DocNum
+		LEFT JOIN [SBOCTRZ].dbo.OPCH OP0 ON OP0.DocEntry = F20.DocEntry
+		LEFT JOIN [HNT-Files].dbo.File_CFDI_HNT_TRZ CF0 ON CF0.DocEntry = OP0.DocEntry AND CF0.TipoDoc = ''Factura'' AND CF0.Extension = ''.xml'' AND CF0.Version=''A''
+		WHERE F20.DocNum = O.DocNum AND ISNULL(CF0.MetodoPago,''PPD'') = ''PPD''
+		),0)>0
+		ORDER BY CF.DocEntry
+		'
+
+		
+		SET @ParmDefinition1 = N'@Desde datetime, @Hasta datetime, @UserSign int, @BD varchar(50), @TipoEmpresa int'; 
+		EXECUTE sp_executesql @SQLString1, @ParmDefinition1, @Desde = @Desde, @Hasta= @Hasta, @UserSign = @UserSign, @BD = @BD, @TipoEmpresa = @TipoEmpresa; 
+	END
+
+	--CONSULTA PARA IDENTIFICAR DUPLICIDADES EN UUID'S E INCONSISTENCIAS EN XML Y DOCUMENTOS. AUTOR: PABLO CUAUTLE COATL 2021-06-11
+	IF @TipoConsulta = 45
+	BEGIN
+		SELECT 
+			Tipo, DocEntry, DocNum[Num Documento SAP], DocDate[Fecha de Contabilizacion], CAST(ISNULL(DocTotal, 0) AS decimal(18, 4))[Total SAP], CAST(ISNULL(Total, 0) AS decimal(18, 4))[Total XML]
+			, RFC_Documento[RFC SAP], RFC_Files[RFC XML]
+			, CardName [Nombre SAP], NombreEmisor [Nombre XML]
+			, UUID_Files[UUID], 
+			CASE WHEN Repeticiones > 1 THEN 'UUID DUPLICADO' ELSE 
+				CASE WHEN ABS(DocTotal - Total) >= 0.50 THEN 'MONTOS DIFERENTES' 
+					 WHEN RFC_Documento COLLATE DATABASE_DEFAULT <> RFC_Files AND RFC_Documento NOT IN ('XAXX010101000') THEN 'RFC NO COINCIDENTE' 
+					 ELSE 'XML VALIDADO (OK)'
+				END
+			END[Motivo] 
+		FROM(
+			SELECT 
+				Tipo, DocEntry, DocNum, DocDate, DocTotal, Total, RFC_Documento, RFC_Files, CardName, NombreEmisor, UUID_XML, UUID_Files, dAlta, COUNT(DocEntry) OVER (PARTITION BY UUID_Files)[Repeticiones] 
+			FROM(
+				SELECT 
+					'Factura'[Tipo],
+					A.DocEntry[DocEntry], 
+					B.DocEntry[DocEntry_Files], 
+					A.DocNum,
+					A.DocDate,
+					A.TransId, /*D.Documento*/ A.DocNum Documento,
+					CASE WHEN A.DocCur = 'USD' THEN A.DocTotalFC ELSE A.DocTotal END DocTotal, /*D.Total*/ B.dTotal Total, 
+					A.LicTradNum[RFC_Documento], /*D.RFC*/ B.Emisor [RFC_XML], B.Emisor[RFC_Files],
+					A.CardName, B.NombreEmisor,
+					U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+					B.dAlta, C.Nombre
+				FROM 
+					SBOCTRZ.dbo.OPCH A
+					INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc LIKE 'Factura%' AND Extension LIKE '%XML'
+					LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+					--LEFT JOIN [dbo].[XmlFacturas2018] D on A.TransId = D.Documento and D.ObjType = 18
+				UNION ALL
+				SELECT 
+					'NCredito'[Tipo], A.DocEntry[DocEntry_ORPC], B.DocEntry[DocEntry_Files], A.DocNum,A.DocDate,
+					A.TransId, /*D.Documento*/ A.DocNum Documento,
+					CASE WHEN A.DocCur = 'USD' THEN A.DocTotalFC ELSE A.DocTotal END DocTotal, /*D.Total*/ B.dTotal Total, 
+					A.LicTradNum[RFC_ORPC], /*D.RFC*/ B.Emisor [RFC_XML], B.Emisor[RFC_Files],
+					A.CardName, B.NombreEmisor,
+					U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+					B.dAlta, C.Nombre
+				FROM 
+					SBOCTRZ.dbo.ORPC A
+					INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc = 'NCredito' AND Extension LIKE '%XML'
+					LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+				UNION ALL
+				SELECT 
+					'ComplementoPago'[Tipo], A.DocEntry[DocEntry_ORPC], B.DocEntry[DocEntry_Files], A.DocNum,A.DocDate,
+					A.TransId, /*D.Documento*/ A.DocNum Documento,
+					A.DocTotal, /*D.Total*/ B.dTotal Total, 
+					''[RFC_ORPC], /*D.RFC*/ B.Emisor [RFC_XML], B.Emisor[RFC_Files],
+					A.CardName, B.NombreEmisor,
+					U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+					B.dAlta, C.Nombre
+				FROM 
+					SBOCTRZ.dbo.OVPM A
+					INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc = 'ComplementoPago' AND Extension LIKE '%XML'
+					LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+			)T0	
+		)T1
+		WHERE CAST(DocDate AS date) BETWEEN @Desde AND @Hasta
+		ORDER BY UUID_Files
+		--SELECT 
+		--	Tipo, DocEntry, DocNum[Documento], DocDate[Fecha de Contabilizacion], CAST(ISNULL(DocTotal, 0) AS decimal(18, 4))[Total del Documento], CAST(ISNULL(Total, 0) AS decimal(18, 4))[Total XML], RFC_Documento[RFC Documento], RFC_Files[RFC XML], UUID_Files[UUID], 
+		--	CASE WHEN Repeticiones > 1 THEN 'UUID DUPLICADO' ELSE 
+		--		CASE WHEN DocTotal <> Total THEN 'MONTOS DIFERENTES' 
+		--			 WHEN RFC_Documento COLLATE DATABASE_DEFAULT <> RFC_Files THEN 'RFC NO COINCIDENTE' ELSE 'XML VALIDADO'
+		--		END
+		--	END[Motivo]
+		--FROM(
+		--	SELECT 
+		--		Tipo, DocEntry, DocNum, DocDate, DocTotal, Total, RFC_Documento, RFC_Files, UUID_XML, UUID_Files, dAlta, COUNT(DocEntry) OVER (PARTITION BY UUID_Files)[Repeticiones] 
+		--	FROM(
+		--		SELECT 
+		--			'Factura'[Tipo],
+		--			A.DocEntry[DocEntry], 
+		--			B.DocEntry[DocEntry_Files], 
+		--			A.DocNum,
+		--			A.DocDate,
+		--			A.TransId, D.Documento,
+		--			A.DocTotal, D.Total, 
+		--			A.LicTradNum[RFC_Documento], D.RFC[RFC_XML], B.Emisor[RFC_Files],
+		--			U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+		--			B.dAlta, C.Nombre
+		--		FROM 
+		--		SBOCTRZ.dbo.OPCH A
+		--		INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc = 'Factura' AND Extension LIKE '%XML'
+		--		LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+		--		LEFT JOIN [dbo].[XmlFacturas2018] D on A.TransId = D.Documento and D.ObjType = 18
+		--		UNION ALL
+		--		SELECT 
+		--			'NCredito'[Tipo], A.DocEntry[DocEntry_ORPC], B.DocEntry[DocEntry_Files], A.DocNum,A.DocDate,
+		--			A.TransId, D.Documento,
+		--			A.DocTotal, D.Total, 
+		--			A.LicTradNum[RFC_ORPC], D.RFC[RFC_XML], B.Emisor[RFC_Files],
+		--			U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+		--			B.dAlta, C.Nombre
+		--		FROM 
+		--		SBOCTRZ.dbo.ORPC A
+		--		INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc = 'NCredito' AND Extension LIKE '%XML'
+		--		LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+		--		LEFT JOIN [dbo].[XmlFacturas2018] D on A.TransId = D.Documento and D.ObjType = 19
+		--		UNION ALL
+		--		SELECT 
+		--			'ComplementoPago'[Tipo], A.DocEntry[DocEntry_ORPC], B.DocEntry[DocEntry_Files], A.DocNum,A.DocDate,
+		--			A.TransId, D.Documento,
+		--			A.DocTotal, D.Total, 
+		--			''[RFC_ORPC], D.RFC[RFC_XML], B.Emisor[RFC_Files],
+		--			U_Edocnum[UUID_ORPC], B.UUID[UUID_XML], B.UUID[UUID_Files],
+		--			B.dAlta, C.Nombre
+		--		FROM 
+		--		SBOCTRZ.dbo.OVPM A
+		--		INNER JOIN [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] B ON A.DocEntry = B.DocEntry AND B.TipoDoc = 'ComplementoPago' AND Extension LIKE '%XML'
+		--		LEFT JOIN HNT.Usuarios C ON C.UserID = B.nUsuario
+		--		LEFT JOIN [dbo].[XmlFacturas2018] D on A.TransId = D.Documento and D.ObjType = 46
+		--	)T0	
+		--)T1
+		--WHERE CAST(DocDate AS date) BETWEEN @Desde AND @Hasta
+		--ORDER BY UUID_Files
+	END
+
+	/******************************************************************************************************************************************************************/
+	IF @TipoConsulta = 46 --INSERTA ARCHIVOS XML PARA EL MODULO DE JOL NW VERSION...
+	BEGIN
+		IF UPPER(@Extension) = '.XML'
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+			BEGIN
+				INSERT INTO [HNT-Files].[dbo].[File_CFDI_HNT_TRZ]
+						   ([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+							[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+							 [RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio], [sRegimenFiscal])
+					 VALUES
+						   (@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A',
+						    @Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+							@RetenidoIVA, @RetenidoISR,	@IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, @RegimenFiscal)
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'				
+			END
+		END
+		ELSE IF UPPER(@Extension) = '.PDF' AND ISNULL(@UUID,'') <> ''
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+			BEGIN
+				INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ] (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A')
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension AND UUID = @UUID)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'			
+			END
+		END
+		ELSE IF UPPER(@Extension) = '.PDF' AND ISNULL(@UUID,'') = ''
+		BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension)
+			BEGIN
+				INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ] (DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version)
+								VALUES(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), 1, 'A')
+
+				SET @iArchivo = @@IDENTITY;				
+			END
+			ELSE
+			BEGIN
+				SET @iArchivo = -1--(SELECT nIdArchivo FROM tbl_File_CFDI WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Nombre = @Nombre AND Extension = @Extension)
+				SET @Mensaje1 = 'Ya existe el archivo especificado'			
+			END
+		END
+	END
+
+	IF @TipoConsulta = 47 --VALIDACION NW VERSION
+	BEGIN
+		SELECT 'UUID'[ColF], 'TimbreFiscalDigital,UUID,0'[Nodo], 'Folio Fiscal'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'FechaFactura'[ColF], 'Comprobante,fecha,1'[Nodo], 'Fecha'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'Moneda'[ColF], 'Comprobante,Moneda,1'[Nodo], 'Moneda'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'MontoFactura'[ColF], 'Comprobante,total,1'[Nodo], 'Monto Total'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'RFCEmisor'[ColF], 'Emisor,rfc,1'[Nodo], 'RFC Emisor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'NombreEmisor'[ColF], 'Emisor,nombre,0'[Nodo], 'Nombre Emisor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'RFCReceptor'[ColF], 'Receptor,rfc,1'[Nodo], 'RFC Receptor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'NombreReceptor'[ColF], 'Receptor,nombre,0'[Nodo], 'Nombre Receptor'[Valor] , ''[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'ValidacionSAT'[ColF], 'ValidacionSAT'[Nodo], 'SAT'[Valor] , '---'[Factura], ''[XML], ''[Resultado]
+		UNION ALL
+		SELECT 'MetodoPago'[ColF], 'Comprobante,MetodoPago,0'[Nodo], 'Metodo Pago'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'UsoCFDI'[ColF], 'Receptor,UsoCFDI,0'[Nodo], 'UsoCFDI'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'Version'[ColF], 'Comprobante,Version,0'[Nodo], 'Version'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'UUIDRelacionado'[ColF], 'CfdiRelacionados,UUID,0'[Nodo], 'Folio Fiscal Relacionado'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+		UNION ALL
+		SELECT 'RegimenFiscal'[ColF], 'Emisor,RegimenFiscal,0'[Nodo], 'Regimen Fiscal'[Valor] , '---'[Factura], ''[XML], ''[Resultado] 
+	END
+
+	IF @TipoConsulta = 48 --INSERTA ARCHIVOS XML PARA EL MODULO DE Carga y Validacion
+	BEGIN
+			IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Extension = @Extension AND TipoDoc = @TipoDoc AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version)
+		BEGIN
+			INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+							(DocEntry, DocNum, DocType, UUID, CardCode, RutaArc, Archivo, Nombre, Extension, TipoDoc, nUsuario, dAlta, nTipoEmpresa, Version,
+							Emisor, Receptor, MetodoPago, dTotal, FormaPago, dFechaPago,[NombreEmisor],[NombreReceptor],[UsoCFDI],[UUIDRelacionado],[VersionCFDI], sRegimenFiscal)
+							VALUES
+							(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
+							@Emisor, @Receptor, @MetodoPago, @Monto, @FormaPago, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @UUIDPadre, @Version, @RegimenFiscal)
+		END
+		ELSE
+		BEGIN
+			UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+			SET DocType = @DocType
+			,UUID = @UUID
+			,CardCode = @CardCode
+			,RutaArc = @RutaArc
+			, Archivo = @Archivo
+			, Nombre = @Nombre
+			, Extension = @Extension
+			, TipoDoc = @TipoDoc
+			, nUsuario = @User_ID
+			, dAlta = GETDATE()
+			, Emisor = @Emisor
+			, Receptor = @Receptor
+			, MetodoPago = @MetodoPago
+			, dTotal = @Monto
+			, FormaPago = @FormaPago
+			, dFechaPago = @FechaPago
+			,[NombreEmisor] = @NameEmisor
+			,[NombreReceptor] = @NameReceptor
+			,[UsoCFDI] = @UsoCFDI
+			,[UUIDRelacionado] = @UUIDPadre
+			,[VersionCFDI] = @Version
+			,sRegimenFiscal = @RegimenFiscal
+
+			WHERE DocEntry = @DocEntry AND DocNum = @DocNum AND Extension = @Extension AND nTipoEmpresa = @TipoEmpresa AND Version = @_Version
+		END
+	END
+
+	IF @TipoConsulta = 49
+	BEGIN
+		Select 
+			CASE 
+				WHEN ArchivoPDF is NULL and Extension like '%'+@Extension+'%' THEN Archivo 
+				WHEN ArchivoPDF is not NULL and @Extension like '%pdf%'  THEN ArchivoPDF  
+				WHEN @Extension like '%xml%'  THEN Archivo  
+			END Archivo,
+			Extension,
+			Nombre
+        FROM [HNT-Files].[dbo].[File_CFDI_HNT_TRZ] 
+		Where nIdArchivo = @id
+	END
+
+	IF @TipoConsulta = 1000
+	BEGIN 
+		--IF NOT EXISTS (SELECT UUID FROM finance.RepCaja1 WHERE UUID = '026E6531-7164-46C8-B5FD-E399ACAD4C77')
+		--BEGIN
+			SELECT
+				(CASE
+					WHEN  Extension = '.pdf' THEN nIdArchivo
+					WHEN  Extension = '.xml'  AND ArchivoPDF IS NOT NULL THEN nIdArchivo 
+				END
+				)IdPDF, 
+				RutaArc 
+			INTO #T1
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ 
+			WHERE UUID = @UUID 
+
+			SELECT TOP 1
+				FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+				, UUID
+				, ISNULL(sFolio, 0) sFolio
+				, ISNULL(Emisor, '') Emisor
+				, ISNULL(NombreEmisor, 0) NombreEmisor
+				, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+				, ISNULL(Conceptos, '') Conceptos
+				, ISNULL(SubtotalExcento, 0) SubtotalExcento
+				, ISNULL(SubtotalGravado, 0) SubtotalGravado
+				, ISNULL(Subtotal, 0) Subtotal -- ELIMINAR CAMPO AL SACAR MÓDULOS DE FONDEOS
+				, ISNULL(IVA08 + IVA16, 0) IVA
+				, ISNULL(RetenidoIVA, 0) RetenidoIVA
+				, ISNULL(RetenidoISR, 0) RetenidoISR
+				, ISNULL(dTotal, 0) dTotal
+				, CASE WHEN Extension = '.pdf' THEN 1 ELSE 0 END Deducible
+				, ISNULL(( CASE WHEN Extension = '.xml' THEN nIdArchivo END ), -1) idXML
+				, ISNULL(( SELECT #T1.IdPDF FROM #T1 WHERE #T1.IdPDF IS NOT NULL), -1) idPDF
+				, 0 Excedente
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+			WHERE UUID = @UUID
+
+			drop table #T1
+		--END
+		--ELSE 
+		--BEGIN
+		--	SELECT @Folio = dCode FROM finance.RepCaja1 WHERE UUID = @UUID
+		--	SET @Error = 'El UUID "' + @UUID + '" ya existe dentro un fondeo con el folio: ' + CAST(@Folio AS varchar(MAX)) + ''
+		--	RAISERROR(@Error, 11, 1)
+		--END
+	END
+
+	IF @TipoConsulta = 50
+	BEGIN 
+		BEGIN TRY
+			IF NOT EXISTS (SELECT UUID FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID) -- Tabla general de XML y PDF´s
+			BEGIN RAISERROR('No se ha subido ningún archivo ".xml" con el UUID ingresado o está mal escrito<br/>', 11, 1) END
+
+			IF EXISTS (SELECT UUID FROM finance.RepCaja1 WHERE UUID = @UUID) -- Tabla de detalle de fondeos
+			BEGIN
+				SELECT @Folio = dCode FROM finance.RepCaja1 WHERE UUID = @UUID
+				SET @Error = 'El UUID "' + @UUID + '" ya existe dentro un fondeo con el folio: ' + CAST(@Folio AS varchar(MAX)) + '<br/>'
+				RAISERROR(@Error, 11, 1)
+			END
+
+			SELECT
+				(CASE
+					WHEN  Extension = '.pdf' THEN nIdArchivo
+					WHEN  Extension = '.xml'  AND ArchivoPDF IS NOT NULL THEN nIdArchivo 
+				END
+				)IdPDF, 
+				RutaArc 
+			INTO #Tprueba
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ 
+			WHERE UUID = @UUID 
+
+			SELECT TOP 1
+				B.FechaPago FechaTransaccion
+				, B.ImportePago
+				, FORMAT(A.dFechaPago, 'yyyy-MM-dd') FechaPago
+				, A.UUID
+				, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+				, ISNULL(A.Emisor, '') Emisor
+				, ISNULL(A.NombreEmisor, 0) NombreEmisor
+				, ISNULL(A.sRegimenFiscal, '') sRegimenFiscal
+				, ISNULL(A.Conceptos, '') Conceptos
+				, ISNULL(A.SubtotalExcento, 0) SubtotalExcento
+				, ISNULL(A.SubtotalGravado, 0) SubtotalGravado
+				, ISNULL(A.Subtotal, 0) Subtotal -- ELIMINAR CAMPO AL SACAR MÓDULOS DE FONDEOS
+				, ISNULL(A.IVA08 + IVA16, 0) IVA
+				, ISNULL(A.RetenidoIVA, 0) RetenidoIVA
+				, ISNULL(A.RetenidoISR, 0) RetenidoISR
+				, ISNULL(A.dTotal, 0) dTotal
+				, CASE WHEN A.Extension = '.pdf' THEN 1 ELSE 0 END Deducible
+				, ISNULL(( CASE WHEN A.Extension = '.xml' THEN A.nIdArchivo END ), -1) idXML
+				, ISNULL(( SELECT top 1 #Tprueba.IdPDF FROM #Tprueba WHERE #Tprueba.IdPDF IS NOT NULL), -1) idPDF
+				, 0 Excedente
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A
+			LEFT JOIN finance.RepCaja1 B ON A.nIdArchivo = B.idPDF
+			WHERE A.UUID = @UUID
+
+			drop table #Tprueba
+		END TRY
+		BEGIN CATCH
+			SET @Error = (SELECT ERROR_MESSAGE() + ' <br/> SP: up_finance_CFDI <br/> Consulta: ' + CAST(@TipoConsulta AS VARCHAR(50)) + ' <br/>' AS ErrorMessage);
+			RAISERROR(@Error, 11, 1);
+		END CATCH
+	END
+
+	IF @TipoConsulta = 51
+	BEGIN
+		IF @Tipo = 'PDF' 
+		BEGIN 
+			SELECT (
+				CASE  
+					WHEN  Extension = '.pdf' THEN Archivo 
+					WHEN  Extension = '.xml' AND ArchivoPDF IS NOT NULL THEN ArchivoPDF 
+				END)IdPDF
+            FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ 
+			WHERE nIdArchivo = @nIdArchivo 
+		END 
+		ELSE 
+		BEGIN 
+			SELECT 
+			   Archivo 
+			FROM 
+			   [HNT-Files].dbo.File_CFDI_HNT_TRZ 
+			WHERE 
+			   Extension = '.xml' 
+			   AND nIdArchivo = @nIdArchivo 
+		END
+	END
+
+	--MODULOS
+	-- 1 Carga y Validación
+	-- 2 Solicitud de reposición
+	-- 3 Comprobación de viáticos
+	-- 4 Seguimiento de procesos Traking -> Creación/Actualización  -> Proyección Real
+
+
+	IF @TipoConsulta = 52 --Inserción general de archivos xml y pdf en la tabla [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	BEGIN
+		IF NOT EXISTS(SELECT UUID FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE UUID = @UUID OR @UUID = '')
+		BEGIN
+			SET @Identity = (SELECT MAX(nIdArchivo) + 1 FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ)
+			INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+				([nIdArchivo],[DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+				[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+				[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
+				[sRegimenFiscal], [ArchivoPDF], [BaseIVA0])
+			VALUES
+				(@Identity, @DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, 'A',
+				@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+				@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento + ISNULL(@ISH, 0), @Version, @Folio, 
+				@RegimenFiscal, @Archivo1, @BaseIVA0)
+		    --SET @Identity = SCOPE_IDENTITY()
+
+			SELECT
+				ISNULL(FORMAT(dFechaPago, 'yyyy-MM-dd'), '') FechaPago
+				, UUID
+				, CASE WHEN ISNULL(sFolio, '') <> '' THEN sFolio ELSE UUID END sFolio
+				, ISNULL(NombreEmisor, 0) NombreEmisor
+				, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+				, ISNULL(Conceptos, '') Conceptos
+				, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+				, ISNULL(SubtotalGravado, 0) SubtotalGravado
+				, ISNULL(IVA08 + IVA16, 0) IVA
+				, ISNULL(RetenidoIVA, 0) RetenidoIVA
+				, ISNULL(RetenidoISR, 0) RetenidoISR
+				, ISNULL(dTotal, 0) dTotal
+				, ISNULL(Emisor,'') Emisor
+				, ISNULL(Conceptos, '') Conceptos
+				, ISNULL(SubtotalExcento, 0) SubtotalExcento
+				, ISNULL(Subtotal, 0) Subtotal
+				, A.TipoComprobante
+				, CASE 
+					WHEN Extension = '.pdf' THEN 1
+					WHEN Extension = '.xml' THEN 0
+				  END Deducible
+				, nIdArchivo
+				, 1 val
+				, 'Documento(s) almacenado(s) correctamente' Msj
+				, 0 Excedente
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+			WHERE nIdArchivo = @Identity
+
+			IF @Modulo = 3
+			BEGIN
+				BEGIN TRANSACTION Modulo3
+				BEGIN TRY
+					SET @IdInsertado = (SELECT MAX(nIdArchivo) FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ)
+					INSERT INTO finance.Viaticos_Xml
+					VALUES(@IdViatico, @Rubro, @IdInsertado, @Total, @Estado, @RechazoAutomatico, NULL)
+					EXEC up_finance_ComprobacionViaticos @TipoConsulta = 6, @IdViatico = @IdViatico, @Rubro = @Rubro
+
+					SELECT
+						A.Id
+						, A.IdViatico
+						, A.Rubro
+						, A.TipoDeposito
+						, B.Nombre
+						, A.CostoTotal
+						, A.CostoComprobado
+						, A.CostoPendienteAutorizar
+						, A.CostoPendienteComprobar
+						, 'Guardado con exito' Msj
+						, @IdInsertado IdInsertado  
+					FROM 
+						finance.Viaticos_Totales A
+						join finance.Viaticos_TipoPago B on A.TipoDeposito = B.Codigo
+					WHERE 
+						A.IdViatico = @IdViatico
+						and A.CostoTotal > 0
+						and A.Rubro = @Rubro
+				END TRY
+				BEGIN CATCH
+					ROLLBACK TRANSACTION	
+				END CATCH
+			END
+			ELSE IF @Modulo = 4
+			BEGIN
+				IF EXISTS(SELECT * FROM [HNT-Files].DBO.File_CFDI_HNT_TRZ WHERE UUID LIKE '%Tracking%' and nIdArchivo = @Identity)
+				BEGIN
+					UPDATE [HNT-Files].dbo.File_CFDI_HNT_TRZ set UUID = CAST(@Identity AS VARCHAR(50)) + ' - ' + TipoDoc WHERE nIdArchivo = @Identity
+				END
+			END
+			ELSE IF @Modulo = 5
+			BEGIN
+				UPDATE [HNT-Files].dbo.File_CFDI_HNT_TRZ set UUID = CAST(@Identity AS VARCHAR(50)) + ' - ' + TipoDoc WHERE nIdArchivo = @Identity
+			END
+
+			SELECT
+				ISNULL(sFolio, 0) sFolio
+				, ISNULL(NombreEmisor, 0) NombreEmisor
+				, ISNULL(Emisor,'') Emisor
+				, ISNULL(Conceptos, '') Conceptos
+				, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+				, ISNULL(Subtotal, 0) Subtotal
+				, ISNULL(IVA08 + IVA16, 0) IVA
+				, ISNULL(RetenidoIVA, 0) RetenidoIVA
+				, ISNULL(RetenidoISR, 0) RetenidoISR
+				, ISNULL(dTotal, 0) dTotal
+				, ISNULL(nIdArchivo, 0) nIdArchivo
+				, UUID
+				, 1 val
+				, 'Documento(s) almacenado(s) correctamente' Msj
+			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+			WHERE nIdArchivo = @Identity
+
+		END
+		ELSE
+		BEGIN
+			IF @Modulo = 1
+			BEGIN
+				IF @Extension = '.XML'
+				BEGIN
+					UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+						SET 
+						DocEntry = @DocEntry
+						, DocNum = @DocNum
+						, sFacturaSAP = @DocNum
+						, DocType = DocType
+						, UUID = @UUID
+						, CardCode = @CardCode
+						, RutaArc = @RutaArc
+						, Archivo = @Archivo
+						, Nombre = @Nombre
+						, Extension = @Extension
+						, nUsuario = @User_ID
+						, dAlta = GETDATE()
+						, Emisor = @Emisor
+						, Receptor = @Receptor
+						, MetodoPago = @MetodoPago
+						, dTotal = @Monto
+						, FormaPago = @FormaPago
+						, dFechaPago = @FechaPago
+						, Version = @_Version
+						, [NombreEmisor] = @NameEmisor
+						, [NombreReceptor] = @NameReceptor
+						, [UsoCFDI] = @UsoCFDI
+						, [UUIDRelacionado] = @UUIDPadre
+						, [VersionCFDI] = @Version
+						, sRegimenFiscal = @RegimenFiscal
+					WHERE UUID = @UUID
+					SELECT nIdArchivo FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID
+				ENd
+				ELSE IF @Extension = '.pdf'
+				BEGIN
+					UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+						SET ArchivoPDF = @Archivo1
+					WHERE UUID = @UUID
+					SELECT nIdArchivo FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID
+				END
+			END
+
+			IF @Modulo = 2
+			BEGIN
+				IF UPPER(@Extension) = '.xml'
+				BEGIN
+				UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ] SET 
+					UUID = @UUID
+					, RutaArc = @RutaArc
+					, Archivo = @Archivo
+					, Nombre = @Nombre
+					, Extension = @Extension
+					, nUsuario = @User_ID
+					, dAlta = GETDATE()
+					, Emisor = @Emisor
+					, Receptor = @Receptor
+					, MetodoPago = @MetodoPago
+					, dTotal = @Monto
+					, FormaPago = @FormaPago
+					, dFechaPago = @FechaPago
+					, NombreEmisor = @NameEmisor
+					, NombreReceptor = @NameReceptor
+					, UsoCFDI = @UsoCFDI
+					, UUIDRelacionado = @UUIDPadre
+					, VersionCFDI = @Version
+					, sRegimenFiscal = @RegimenFiscal
+					, ArchivoPDF = @Archivo1
+					, BaseIVA0 = @BaseIVA0
+				WHERE UUID = @UUID
+
+				SELECT
+					FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+					, UUID
+					, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+					, ISNULL(Emisor, '') Emisor
+					, ISNULL(NombreEmisor, 0) NombreEmisor
+					, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+					, ISNULL(Conceptos, '') Conceptos
+					, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+					, ISNULL(SubtotalGravado, 0) SubtotalGravado
+					, ISNULL(IVA08 + IVA16, 0) IVA
+					, ISNULL(RetenidoIVA, 0) RetenidoIVA
+					, ISNULL(RetenidoISR, 0) RetenidoISR
+					, ISNULL(dTotal, 0) dTotal
+					, ISNULL(sFacturaSAP, -1)
+					, ISNULL(Emisor,'') Emisor
+					, ISNULL(Conceptos, '') Conceptos
+					, ISNULL(SubtotalExcento, 0) SubtotalExcento
+					, ISNULL(Subtotal, 0) Subtotal
+					, TipoComprobante
+					, CASE 
+						WHEN Extension = '.pdf' THEN 1
+						WHEN Extension = '.xml' THEN 0
+						END Deducible
+					, 0 Excedente
+					, nIdArchivo
+					, 0 val
+				FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+				WHERE UUID = '59AB5F02-2BBA-11F0-B97C-00155D012007'
+				END
+				IF UPPER(@Deducible) = 'ON'
+				BEGIN
+					IF UPPER(@Extension) = '.PDF'
+					BEGIN
+						--IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE Nombre LIKE '%'+ @Nombre +'%' and Extension = '.pdf')
+						--BEGIN
+							INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+								([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+								[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+								[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio], BaseIVA0,
+								[sRegimenFiscal], [ArchivoPDF])
+							VALUES
+								(@DocEntry, @DocNum, @DocType, CAST((select  MAX(nIdArchivo) + 1 from [HNT-Files].dbo.File_CFDI_HNT_TRZ)as varchar(max))+'-Factura', @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
+								@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+								@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
+								@RegimenFiscal, @Archivo1, @BaseIVA0)
+
+							SET @Identity = SCOPE_IDENTITY()
+
+							SELECT
+								FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+								, UUID
+								, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+								, ISNULL(Emisor, '') Emisor
+								, ISNULL(NombreEmisor, 0) NombreEmisor
+								, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+								, ISNULL(Conceptos, '') Conceptos
+								, ISNULL(SubtotalExcento + BaseIVA0, 0) SubtotalExcento
+								, ISNULL(SubtotalGravado, 0) SubtotalGravado
+								, ISNULL(IVA08 + IVA16, 0) IVA
+								, iva0 = @BaseIVA0
+								, ISNULL(RetenidoIVA, 0) RetenidoIVA
+								, ISNULL(RetenidoISR, 0) RetenidoISR
+								, ISNULL(dTotal, 0) dTotal
+								, ISNULL(Emisor,'') Emisor
+								, ISNULL(Conceptos, '') Conceptos
+								, ISNULL(SubtotalExcento, 0) SubtotalExcento
+								, ISNULL(Subtotal, 0) Subtotal
+								, CASE 
+									WHEN Extension = '.pdf' THEN 1
+									WHEN Extension = '.xml' THEN 0
+								  END Deducible
+								, 0 Excedente
+								, nIdArchivo
+								, 0 val
+								, A.TipoComprobante
+							FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+							WHERE nIdArchivo = @Identity
+						--END
+						--ELSE
+						--BEGIN
+						--	SELECT
+						--		FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+						--		, UUID
+						--		, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+						--		, ISNULL(Emisor, '') Emisor
+						--		, ISNULL(NombreEmisor, 0) NombreEmisor
+						--		, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+						--		, ISNULL(Conceptos, '') Conceptos
+						--		, ISNULL(SubtotalExcento, 0) SubtotalExcento
+						--		, ISNULL(SubtotalGravado, 0) SubtotalGravado
+						--		, ISNULL(IVA08 + IVA16, 0) IVA
+						--		, ISNULL(RetenidoIVA, 0) RetenidoIVA
+						--		, ISNULL(RetenidoISR, 0) RetenidoISR
+						--		, ISNULL(dTotal, 0) dTotal
+						--		, ISNULL(Emisor,'') Emisor
+						--		, ISNULL(Conceptos, '') Conceptos
+						--		, ISNULL(SubtotalExcento, 0) SubtotalExcento
+						--		, ISNULL(Subtotal, 0) Subtotal
+						--		, CASE 
+						--			WHEN Extension = '.pdf' THEN 1
+						--			WHEN Extension = '.xml' THEN 0
+						--		  END Deducible
+						--		, 0 Excedente
+						--		, nIdArchivo
+						--		, 0 val
+						--	FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+						--	WHERE Nombre = @Nombre and Extension = '.pdf'
+						--END
+					END
+				END
+				ELSE
+				BEGIN
+					SELECT -1 nIdArchivo
+				END
+			END
+
+			IF @Modulo = 3
+			BEGIN
+				IF UPPER(@Extension) = '.PDF'
+				BEGIN
+					IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE Nombre LIKE '%'+ @Nombre +'%' and Extension = '.pdf')
+					BEGIN
+						INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+							([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+							[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+							[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
+							[sRegimenFiscal], [ArchivoPDF], [BaseIVA0])
+						VALUES
+							(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
+							@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+							@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
+							@RegimenFiscal, @Archivo1, @BaseIVA0)
+						SET @Identity = SCOPE_IDENTITY()
+
+						SELECT
+							ISNULL(sFolio, 0) sFolio
+							, ISNULL(NombreEmisor, 0) NombreEmisor
+							, ISNULL(Emisor,'') Emisor
+							, ISNULL(Conceptos, '') Conceptos
+							, ISNULL(SubtotalExcento, 0) SubtotalExcento
+							, ISNULL(Subtotal, 0) Subtotal
+							, ISNULL(IVA08 + IVA16, 0) IVA
+							, ISNULL(RetenidoIVA, 0) RetenidoIVA
+							, ISNULL(RetenidoISR, 0) RetenidoISR
+							, ISNULL(dTotal, 0) dTotal
+							, ISNULL(nIdArchivo, 0) nIdArchivo
+							, UUID
+							, 0 val
+						FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+						WHERE nIdArchivo = @Identity
+					END
+					ELSE 
+					BEGIN
+						SELECT	ISNULL(sFolio, 0) sFolio
+							, ISNULL(NombreEmisor, 0) NombreEmisor
+							, ISNULL(Emisor,'') Emisor
+							, ISNULL(Conceptos, '') Conceptos
+							, ISNULL(SubtotalExcento, 0) SubtotalExcento
+							, ISNULL(Subtotal, 0) Subtotal
+							, ISNULL(IVA08 + IVA16, 0) IVA
+							, ISNULL(RetenidoIVA, 0) RetenidoIVA
+							, ISNULL(RetenidoISR, 0) RetenidoISR
+							, ISNULL(dTotal, 0) dTotal
+							, ISNULL(nIdArchivo, 0) nIdArchivo
+							, UUID
+							, 0 val
+						FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+						WHERE Nombre = @Nombre and Extension = '.pdf'
+					END
+				END
+				ELSE IF UPPER(@Extension) = '.xml'
+				BEGIN
+					SELECT
+						nIdArchivo
+						, dTotal
+						, 'El UUID relacionado a esta Factura ya fué registrado.' Msj
+					FROM
+						[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+					WHERE 
+						UUID = @UUID
+				END
+			ENd
+			IF @Modulo = 4
+			BEGIN
+				IF UPPER(@Extension) = '.xml'
+				BEGIN
+					SELECT
+						nIdArchivo
+						, dTotal
+						, 'Documentos asociados correctamente.' Msj
+						, 1 val
+					FROM
+						[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+					WHERE 
+						UUID = @UUID
+				END
+			END
+		END
+	END
+
+	--IF @TipoConsulta = 52 --Inserción general de archivos xml y pdf en la tabla [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--BEGIN
+	--	IF NOT EXISTS(SELECT UUID FROM [HNT-Files].dbo.[File_CFDI_HNT_TRZ] WHERE UUID = @UUID OR @UUID = '')
+	--	BEGIN
+	--		INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--			([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+	--			[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+	--			[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
+	--			[sRegimenFiscal], [ArchivoPDF])
+	--		VALUES
+	--			(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, 'A',
+	--			@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+	--			@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
+	--			@RegimenFiscal, @Archivo1)
+	--	    SET @Identity = SCOPE_IDENTITY()
+
+	--		SELECT
+	--			ISNULL(FORMAT(dFechaPago, 'yyyy-MM-dd'), '') FechaPago
+	--			, UUID
+	--			, CASE WHEN ISNULL(sFolio, '') <> '' THEN sFolio ELSE UUID END sFolio
+	--			, ISNULL(NombreEmisor, 0) NombreEmisor
+	--			, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+	--			, ISNULL(Conceptos, '') Conceptos
+	--			, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--			, ISNULL(SubtotalGravado, 0) SubtotalGravado
+	--			, ISNULL(IVA08 + IVA16, 0) IVA
+	--			, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--			, ISNULL(RetenidoISR, 0) RetenidoISR
+	--			, ISNULL(dTotal, 0) dTotal
+	--			, ISNULL(Emisor,'') Emisor
+	--			, ISNULL(Conceptos, '') Conceptos
+	--			, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--			, ISNULL(Subtotal, 0) Subtotal
+	--			, A.TipoComprobante
+	--			, CASE 
+	--				WHEN Extension = '.pdf' THEN 1
+	--				WHEN Extension = '.xml' THEN 0
+	--			  END Deducible
+	--			, nIdArchivo
+	--			, 1 val
+	--			, 'Domunento(s) almacenado(s) correctamente' Msj
+	--			, 0 Excedente
+	--		FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+	--		WHERE nIdArchivo = @Identity
+
+	--		IF @Modulo = 3
+	--		BEGIN
+	--			BEGIN TRANSACTION Modulo3
+	--			BEGIN TRY
+	--				SET @IdInsertado = (SELECT MAX(nIdArchivo) FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ)
+	--				INSERT INTO finance.Viaticos_Xml
+	--				VALUES(@IdViatico, @Rubro, @IdInsertado, @Total, @Estado, @RechazoAutomatico, NULL)
+	--				EXEC up_finance_ComprobacionViaticos @TipoConsulta = 6, @IdViatico = @IdViatico, @Rubro = @Rubro
+
+	--				SELECT
+	--					A.Id
+	--					, A.IdViatico
+	--					, A.Rubro
+	--					, A.TipoDeposito
+	--					, B.Nombre
+	--					, A.CostoTotal
+	--					, A.CostoComprobado
+	--					, A.CostoPendienteAutorizar
+	--					, A.CostoPendienteComprobar
+	--					, 'Guardado con exito' Msj
+	--					, @IdInsertado IdInsertado  
+	--				FROM 
+	--					finance.Viaticos_Totales A
+	--					join finance.Viaticos_TipoPago B on A.TipoDeposito = B.Codigo
+	--				WHERE 
+	--					A.IdViatico = @IdViatico
+	--					and A.CostoTotal > 0
+	--					and A.Rubro = @Rubro
+	--			END TRY
+	--			BEGIN CATCH
+	--				ROLLBACK TRANSACTION	
+	--			END CATCH
+	--		END
+	--	--	ELSE IF @Modulo = 4
+	--	--	BEGIN
+	--	--		IF EXISTS(SELECT * FROM [HNT-Files].DBO.File_CFDI_HNT_TRZ WHERE UUID LIKE '%Tracking%' and nIdArchivo = @Identity)
+	--	--		BEGIN
+	--	--			UPDATE [HNT-Files].dbo.File_CFDI_HNT_TRZ set UUID = CAST(@Identity AS VARCHAR(50)) + ' - ' + TipoDoc WHERE nIdArchivo = @Identity
+	--	--		END
+	--	--	END
+
+	--	--	SELECT
+	--	--		ISNULL(sFolio, 0) sFolio
+	--	--		, ISNULL(NombreEmisor, 0) NombreEmisor
+	--	--		, ISNULL(Emisor,'') Emisor
+	--	--		, ISNULL(Conceptos, '') Conceptos
+	--	--		, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--	--		, ISNULL(Subtotal, 0) Subtotal
+	--	--		, ISNULL(IVA08 + IVA16, 0) IVA
+	--	--		, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--	--		, ISNULL(RetenidoISR, 0) RetenidoISR
+	--	--		, ISNULL(dTotal, 0) dTotal
+	--	--		, ISNULL(nIdArchivo, 0) nIdArchivo
+	--	--		, UUID
+	--	--		, 1 val
+	--	--		, 'Domunento(s) almacenado(s) correctamente' Msj
+	--	--	FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+	--	--	WHERE nIdArchivo = @Identity
+
+	--	END
+	--	ELSE
+	--	BEGIN
+	--		IF @Modulo = 1
+	--		BEGIN
+	--			IF @Extension = '.XML'
+	--			BEGIN
+	--				UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--					SET 
+	--					DocEntry = @DocEntry
+	--					, DocNum = @DocNum
+	--					, DocType = DocType
+	--					, UUID = @UUID
+	--					, CardCode = @CardCode
+	--					, RutaArc = @RutaArc
+	--					, Archivo = @Archivo
+	--					, Nombre = @Nombre
+	--					, Extension = @Extension
+	--					, nUsuario = @User_ID
+	--					, dAlta = GETDATE()
+	--					, Emisor = @Emisor
+	--					, Receptor = @Receptor
+	--					, MetodoPago = @MetodoPago
+	--					, dTotal = @Monto
+	--					, FormaPago = @FormaPago
+	--					, dFechaPago = @FechaPago
+	--					, Version = @_Version
+	--					, [NombreEmisor] = @NameEmisor
+	--					, [NombreReceptor] = @NameReceptor
+	--					, [UsoCFDI] = @UsoCFDI
+	--					, [UUIDRelacionado] = @UUIDPadre
+	--					, [VersionCFDI] = @Version
+	--					, sRegimenFiscal = @RegimenFiscal
+	--				WHERE UUID = @UUID
+	--				SELECT nIdArchivo FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID
+	--			ENd
+	--			ELSE IF @Extension = '.pdf'
+	--			BEGIN
+	--				UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--					SET ArchivoPDF = @Archivo1
+	--				WHERE UUID = @UUID
+	--				SELECT nIdArchivo FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE UUID = @UUID
+	--			END
+	--		END
+
+	--		IF @Modulo = 2
+	--		BEGIN
+	--			IF UPPER(@Extension) = '.xml'
+	--			BEGIN
+	--			UPDATE [HNT-Files].dbo.[File_CFDI_HNT_TRZ] SET 
+	--				UUID = @UUID
+	--				, RutaArc = @RutaArc
+	--				, Archivo = @Archivo
+	--				, Nombre = @Nombre
+	--				, Extension = @Extension
+	--				, nUsuario = @User_ID
+	--				, dAlta = GETDATE()
+	--				, Emisor = @Emisor
+	--				, Receptor = @Receptor
+	--				, MetodoPago = @MetodoPago
+	--				, dTotal = @Monto
+	--				, FormaPago = @FormaPago
+	--				, dFechaPago = @FechaPago
+	--				, NombreEmisor = @NameEmisor
+	--				, NombreReceptor = @NameReceptor
+	--				, UsoCFDI = @UsoCFDI
+	--				, UUIDRelacionado = @UUIDPadre
+	--				, VersionCFDI = @Version
+	--				, sRegimenFiscal = @RegimenFiscal
+	--				, ArchivoPDF = @Archivo1
+	--			WHERE UUID = @UUID
+
+	--			SELECT
+	--				FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+	--				, UUID
+	--				, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+	--				, ISNULL(Emisor, '') Emisor
+	--				, ISNULL(NombreEmisor, 0) NombreEmisor
+	--				, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+	--				, ISNULL(Conceptos, '') Conceptos
+	--				, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--				, ISNULL(SubtotalGravado, 0) SubtotalGravado
+	--				, ISNULL(IVA08 + IVA16, 0) IVA
+	--				, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--				, ISNULL(RetenidoISR, 0) RetenidoISR
+	--				, ISNULL(dTotal, 0) dTotal
+	--				, ISNULL(sFacturaSAP, -1)
+	--				, ISNULL(Emisor,'') Emisor
+	--				, ISNULL(Conceptos, '') Conceptos
+	--				, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--				, ISNULL(Subtotal, 0) Subtotal
+	--				, TipoComprobante
+	--				, CASE 
+	--					WHEN Extension = '.pdf' THEN 1
+	--					WHEN Extension = '.xml' THEN 0
+	--					END Deducible
+	--				, 0 Excedente
+	--				, nIdArchivo
+	--				, 0 val
+	--			FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+	--			WHERE UUID = @UUID
+	--			END
+	--			IF UPPER(@Deducible) = 'ON'
+	--			BEGIN
+	--				IF UPPER(@Extension) = '.PDF'
+	--				BEGIN
+	--					--IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE Nombre LIKE '%'+ @Nombre +'%' and Extension = '.pdf')
+	--					--BEGIN
+	--						INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--							([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+	--							[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+	--							[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
+	--							[sRegimenFiscal], [ArchivoPDF])
+	--						VALUES
+	--							(@DocEntry, @DocNum, @DocType, CAST((select  MAX(nIdArchivo) + 1 from [HNT-Files].dbo.File_CFDI_HNT_TRZ)as varchar(max))+'-Factura', @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
+	--							@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+	--							@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
+	--							@RegimenFiscal, @Archivo1)
+
+	--						SET @Identity = SCOPE_IDENTITY()
+
+	--						SELECT
+	--							FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+	--							, UUID
+	--							, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+	--							, ISNULL(Emisor, '') Emisor
+	--							, ISNULL(NombreEmisor, 0) NombreEmisor
+	--							, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+	--							, ISNULL(Conceptos, '') Conceptos
+	--							, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--							, ISNULL(SubtotalGravado, 0) SubtotalGravado
+	--							, ISNULL(IVA08 + IVA16, 0) IVA
+	--							, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--							, ISNULL(RetenidoISR, 0) RetenidoISR
+	--							, ISNULL(dTotal, 0) dTotal
+	--							, ISNULL(Emisor,'') Emisor
+	--							, ISNULL(Conceptos, '') Conceptos
+	--							, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--							, ISNULL(Subtotal, 0) Subtotal
+	--							, CASE 
+	--								WHEN Extension = '.pdf' THEN 1
+	--								WHEN Extension = '.xml' THEN 0
+	--							  END Deducible
+	--							, 0 Excedente
+	--							, nIdArchivo
+	--							, 0 val
+	--							, A.TipoComprobante
+	--						FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+	--						WHERE nIdArchivo = @Identity
+	--					--END
+	--					--ELSE
+	--					--BEGIN
+	--					--	SELECT
+	--					--		FORMAT(dFechaPago, 'yyyy-MM-dd') FechaPago
+	--					--		, UUID
+	--					--		, CASE WHEN ISNULL(A.sFolio, '') <> '' THEN A.sFolio ELSE A.UUID END sFolio
+	--					--		, ISNULL(Emisor, '') Emisor
+	--					--		, ISNULL(NombreEmisor, 0) NombreEmisor
+	--					--		, ISNULL(sRegimenFiscal, '') sRegimenFiscal
+	--					--		, ISNULL(Conceptos, '') Conceptos
+	--					--		, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--					--		, ISNULL(SubtotalGravado, 0) SubtotalGravado
+	--					--		, ISNULL(IVA08 + IVA16, 0) IVA
+	--					--		, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--					--		, ISNULL(RetenidoISR, 0) RetenidoISR
+	--					--		, ISNULL(dTotal, 0) dTotal
+	--					--		, ISNULL(Emisor,'') Emisor
+	--					--		, ISNULL(Conceptos, '') Conceptos
+	--					--		, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--					--		, ISNULL(Subtotal, 0) Subtotal
+	--					--		, CASE 
+	--					--			WHEN Extension = '.pdf' THEN 1
+	--					--			WHEN Extension = '.xml' THEN 0
+	--					--		  END Deducible
+	--					--		, 0 Excedente
+	--					--		, nIdArchivo
+	--					--		, 0 val
+	--					--	FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+	--					--	WHERE Nombre = @Nombre and Extension = '.pdf'
+	--					--END
+	--				END
+	--			END
+	--			ELSE
+	--			BEGIN
+	--				SELECT -1 nIdArchivo
+	--			END
+	--		END
+
+	--		IF @Modulo = 3
+	--		BEGIN
+	--			IF UPPER(@Extension) = '.PDF'
+	--			BEGIN
+	--				IF NOT EXISTS(SELECT * FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ WHERE Nombre LIKE '%'+ @Nombre +'%' and Extension = '.pdf')
+	--				BEGIN
+	--					INSERT INTO [HNT-Files].dbo.[File_CFDI_HNT_TRZ]
+	--						([DocEntry],[DocNum],[DocType],[UUID],[CardCode],[RutaArc],[Archivo],[Nombre],[Extension],[TipoDoc],[nUsuario],[dAlta],[nTipoEmpresa],[Version],
+	--						[Emisor],[Receptor],[MetodoPago],[FormaPago],[dTotal],[dFechaPago],[NombreEmisor],[NombreReceptor],[UsoCFDI], [TipoComprobante],[Subtotal], [Descuento], 
+	--						[RetenidoIVA], [RetenidoISR], [IVA08],[IVA16],[IEPS],[ISH],[UUIDRelacionado], [Conceptos], [SubtotalGravado],[SubtotalExcento],[VersionCFDI], [sFolio],
+	--						[sRegimenFiscal], [ArchivoPDF])
+	--					VALUES
+	--						(@DocEntry, @DocNum, @DocType, @UUID, @CardCode, @RutaArc, @Archivo, @Nombre, @Extension, @TipoDoc, @User_ID, GETDATE(), @TipoEmpresa, @_Version,
+	--						@Emisor, @Receptor, @MetodoPago, @FormaPago, @Monto, @FechaPago, @NameEmisor, @NameReceptor, @UsoCFDI, @TipoComprobante, @Subtotal, @Descuento, 
+	--						@RetenidoIVA, @RetenidoISR, @IVA08, @IVA16, @IEPS, @ISH, @UUIDPadre, @Conceptos, @SubtotalGravado,@SubtotalExcento, @Version, @Folio, 
+	--						@RegimenFiscal, @Archivo1)
+	--					SET @Identity = SCOPE_IDENTITY()
+
+	--					SELECT
+	--						ISNULL(sFolio, 0) sFolio
+	--						, ISNULL(NombreEmisor, 0) NombreEmisor
+	--						, ISNULL(Emisor,'') Emisor
+	--						, ISNULL(Conceptos, '') Conceptos
+	--						, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--						, ISNULL(Subtotal, 0) Subtotal
+	--						, ISNULL(IVA08 + IVA16, 0) IVA
+	--						, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--						, ISNULL(RetenidoISR, 0) RetenidoISR
+	--						, ISNULL(dTotal, 0) dTotal
+	--						, ISNULL(nIdArchivo, 0) nIdArchivo
+	--						, UUID
+	--						, 0 val
+	--					FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A  
+	--					WHERE nIdArchivo = @Identity
+	--				END
+	--				ELSE 
+	--				BEGIN
+	--					SELECT	ISNULL(sFolio, 0) sFolio
+	--						, ISNULL(NombreEmisor, 0) NombreEmisor
+	--						, ISNULL(Emisor,'') Emisor
+	--						, ISNULL(Conceptos, '') Conceptos
+	--						, ISNULL(SubtotalExcento, 0) SubtotalExcento
+	--						, ISNULL(Subtotal, 0) Subtotal
+	--						, ISNULL(IVA08 + IVA16, 0) IVA
+	--						, ISNULL(RetenidoIVA, 0) RetenidoIVA
+	--						, ISNULL(RetenidoISR, 0) RetenidoISR
+	--						, ISNULL(dTotal, 0) dTotal
+	--						, ISNULL(nIdArchivo, 0) nIdArchivo
+	--						, UUID
+	--						, 0 val
+	--					FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ A 
+	--					WHERE Nombre = @Nombre and Extension = '.pdf'
+	--				END
+	--			END
+	--			ELSE IF UPPER(@Extension) = '.xml'
+	--			BEGIN
+	--				SELECT
+	--					nIdArchivo
+	--					, dTotal
+	--					, 'El UUID relacionado a esta Factura ya fué registrado.' Msj
+	--				FROM
+	--					[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+	--				WHERE 
+	--					UUID = @UUID
+	--			END
+	--		ENd
+	--		--IF @Modulo = 4
+	--		--BEGIN
+	--		--	IF UPPER(@Extension) = '.xml'
+	--		--	BEGIN
+	--		--		SELECT
+	--		--			nIdArchivo
+	--		--			, dTotal
+	--		--			, 'El documento con este UUID ya fué registrado.' Msj
+	--		--			, 0 val
+	--		--		FROM
+	--		--			[HNT-Files].dbo.File_CFDI_HNT_TRZ 
+	--		--		WHERE 
+	--		--			UUID = @UUID
+	--		--	END
+	--		--END
+	--	END
+	--END
+
+	IF @TipoConsulta = 53
+	BEGIN
+		select @TipoDoc = TipoDoc, @DocEntry = DocEntry from [HNT-Files].dbo.File_CFDI_HNT_TRZ where nIdArchivo = @nIdArchivo
+		--select  * from SBOCTRZ.dbo.OPCH where U_EDOCNUM = 'CC7FAC4A-103E-11EE-887C-D53E0AE5A086'
+		--IF OPCH FACTURA 
+		-- IF ORPC NC
+		-- IF OVPN PAGO
+		--U_EDDOCNUM = NULL
+		IF @TipoDoc LIKE '%Factura%'
+		BEGIN
+			UPDATE SBOCTRZ.dbo.OPCH SET U_Edocnum = NULL WHERE DocEntry = @DocEntry
+		END
+		IF @TipoDoc LIKE '%Credito%'
+		BEGIN
+			UPDATE SBOCTRZ.dbo.ORPC SET U_Edocnum = NULL WHERE DocEntry = @DocEntry
+		END
+		IF @TipoDoc LIKE '%Pago%'
+		BEGIN
+			UPDATE SBOCTRZ.dbo.OVPM SET U_Edocnum = NULL WHERE DocEntry = @DocEntry
+		END
+		
+		delete from [HNT-Files].dbo.File_CFDI_HNT_TRZ where nIdArchivo = @nIdArchivo
+		select 'Los archivos se han eliminado correctamente' Msj
+	END
+
+	IF @TipoConsulta = 54
+	BEGIN
+		IF EXISTS (SELECT * FROM [finance].[CFDISAT] WHERE MONTH(Fecha) = @Mes AND YEAR(Fecha) = @Anho)
+		BEGIN
+			SELECT CAST(1 AS BIT)[Response]
+		END
+		ELSE
+		BEGIN
+			SELECT  CAST(0 AS BIT)[Response]
+		END
+	END
+
+	IF @TipoConsulta = 55
+	BEGIN
+		BEGIN TRAN
+		BEGIN TRY
+			DELETE FROM [finance].[CFDISAT] WHERE MONTH(Fecha) = @Mes AND YEAR(Fecha) = @Anho
+			SELECT @Message = 'Información eliminada correctamente', @Type = 'success';
+		COMMIT
+		END TRY
+		BEGIN CATCH
+		ROLLBACK
+			RAISERROR('Ocurrió un error al ejecutar la operacíón, intentelo nuevamente', 11, 1);
+		END CATCH
+	END
+
+	IF @TipoConsulta = 56
+	BEGIN
+		BEGIN TRAN
+		BEGIN TRY
+			DELETE FROM [finance].[CFDISAT] WHERE UUID = @UUID		
+			INSERT INTO [finance].[CFDISAT] 
+			   ([Estatus], [EfectoComprobante], [UUID], [Fecha], [UsoCFDI], [EmisorRFC], [Proveedor], [emisorRegimen], [Conceptos], [Monto],
+			   [DocNum],[DocEntry],[DocType],[ObjType],[DocTotal],[DocTotalfc] ,[DocDate],[Razon],[Moneda],[Version], [FormaPago], [MetodoPago], [TipoCambio])
+			VALUES 
+				(@Estatus, @EfectoComprobante, @UUID, @Fecha, @UsoCFDI, @EmisorRFC, @Proveedor, @RegimenFiscal, @Conceptos,  @Monto,
+			   @DocNum, @DocEntry,@DocType,@ObjType, @DocTotal, @DocTotalfc, @DocDate,@Mensaje,@Moneda, 'A', @FormaPago, @MetodoPago, @TipoCambio)
+
+			SELECT @Message = 'Listo', @Type = 'success';
+		COMMIT
+		END TRY
+		BEGIN CATCH
+		ROLLBACK
+			DECLARE @ErrorMsg VARCHAR(500) = (SELECT ERROR_MESSAGE() AS ERROR);
+			RAISERROR(@ErrorMsg, 11, 1);
+		END CATCH	
+	END
+
+	IF @TipoConsulta = 57
+	BEGIN
+		IF @Opcion = 1
+		BEGIN
+			BEGIN TRY
+				BEGIN TRANSACTION;
+					DELETE FROM [finance].[CFDISATV2] WHERE MONTH(Fecha) = @Mes AND YEAR(Fecha) = @Anho AND Empresa = @Empresa
+					SELECT 'Información eliminada correctamente' [Mensaje], 'success' [Tipo];
+				COMMIT TRANSACTION;
+			END TRY
+			BEGIN CATCH
+			ROLLBACK TRANSACTION; 
+			SELECT 
+				ERROR_MESSAGE() AS Mensaje,
+				'error' AS Tipo;
+			END CATCH
+		END
+
+		IF @Opcion = 2
+		BEGIN
+			BEGIN TRY
+				BEGIN TRANSACTION;
+					DELETE f
+					FROM finance.CFDISATV2 f
+					INNER JOIN @TablaCFDISAT t ON f.UUID = t.[Folio Fiscal]
+					WHERE f.Empresa = @Empresa
+
+					--DELETE FROM finance.CFDISATV2
+					--WHERE UUID IN (SELECT [Folio Fiscal] FROM @TablaCFDISAT) AND Empresa = @Empresa
+
+					INSERT INTO finance.CFDISATV2  
+					SELECT @Empresa, Fecha, Total, [Nombre o Razon Social del Emisor], [Folio Fiscal], Moneda, GETDATE()
+					, 'A', [Efecto del Comprobante], [Estado del Comprobante], [Uso Cfdi], [RFC Emisor], ConceptosDescripcion, [Forma de Pago]
+					, [Metodo de Pago], [Emisor Regimen], Tipo_Cambio FROM  @TablaCFDISAT 
+					SELECT 'Se insertaron los datos' Mensaje, 'success' Tipo
+				COMMIT TRANSACTION;
+			END TRY
+
+			BEGIN CATCH
+			ROLLBACK TRANSACTION; 
+			SELECT 
+				ERROR_MESSAGE() AS MensajeError,
+				'error' AS Tipo;
+			END CATCH
+		END
+	END
+
+	IF @TipoConsulta = 58
+	BEGIN
+		SET @QRY = '
+		SELECT 
+			*
+		FROM (
+			SELECT
+				A.Estatus
+				, ISNULL(A.EfectoComprobante,'''') [Efecto comprobante]
+				, A.UUID
+				, FORMAT(A.Fecha, ''yyyy-MM-dd'') [Fecha SAT]
+				, A.UsoCFDI
+				, A.FormaPago
+				, A.MetodoPago
+				, A.emisorRegimen [Regimen emisor]
+				, A.EmisorRFC [RFC emisor]
+				, A.Proveedor [Nombre emisor]
+				, A.Conceptos
+				, A.Moneda
+				, A.Monto
+				--, A.TipoCambio
+				, MAX(C.DocNum) [OC SAP]
+				, MAX(B.DocNum) [Factura SAP] 				
+				, MAX(D.DocNum) [NC SAP] '
+				IF @Empresa = 'SBOCTRZ'
+					SET @QRY += ', CASE WHEN (SELECT TOP 1 X.nIdArchivo FROM [HNT-Files].dbo.File_CFDI_HNT_TRZ x WHERE X.UUID COLLATE DATABASE_DEFAULT= A.UUID AND Extension = ''.xml'' ) IS NOT NULL THEN ''CARGADO'' END [XML] '
+				ELSE IF @Empresa = 'SBODPJ'
+					SET @QRY += ', CASE WHEN (SELECT TOP 1 X.nIdArchivo FROM [HNT-Files].dbo.File_CFDI x WHERE X.UUID COLLATE DATABASE_DEFAULT= A.UUID AND Extension = ''.xml'' ) IS NOT NULL THEN ''CARGADO'' END [XML] '
+			SET @QRY += ' FROM finance.[CFDISATV2] A
+				LEFT JOIN ' + @Empresa + '.DBO.OPCH B ON A.UUID = B.U_Edocnum AND ISNULL(B.Indicator, '''') <> ''CF'' AND A.EfectoComprobante = ''Ingreso''
+				LEFT JOIN ' + @Empresa + '.DBO.OPOR C ON A.UUID = C.U_Edocnum AND ISNULL(C.Indicator, '''') <> ''CF'' AND A.EfectoComprobante = ''Ingreso''
+				LEFT JOIN ' + @Empresa + '.DBO.ORPC D ON A.UUID = D.U_Edocnum AND ISNULL(D.Indicator, '''') <> ''CF'' AND A.EfectoComprobante = ''Egreso''
+			WHERE 
+				A.Empresa = @Empresa
+				AND A.Fecha BETWEEN @Desde AND @Hasta
+				AND A.Monto <> 0
+				--AND ISNULL(B.U_Edocnum, D.U_Edocnum) IS NULL
+			GROUP BY 
+				A.Estatus
+				, A.EfectoComprobante
+				, A.UUID
+				, A.Fecha
+				, A.UsoCFDI
+				, A.EmisorRFC
+				, A.Proveedor
+				, A.emisorRegimen
+				, A.Conceptos
+				, A.Monto
+				, A.TipoCambio
+				, A.FormaPago
+				, A.Moneda
+				, A.MetodoPago
+		)T0
+		WHERE
+			'
+			--PARA CTRZ y DPJ es necesario cargar archivos en halconet, en el resto de empresas solo se valida que exista el registro en SAP
+			IF @Empresa IN ('SBOCTRZ', 'SBODPJ') 
+				SET @QRY +=' ISNULL([NC SAP], [Factura SAP]) IS NULL OR [XML] IS NULL '
+			ELSE
+				SET @QRY +='  ISNULL([NC SAP], [Factura SAP]) IS NULL '
+
+			SET @Params = '@Desde DATE, @Hasta DATE, @Empresa NVARCHAR(100)'
+		EXEC sp_executesql @QRY, @Params, @Desde, @Hasta, @Empresa
+	END
+
+END
