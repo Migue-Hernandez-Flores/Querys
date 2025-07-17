@@ -1,6 +1,6 @@
 USE [HNT_TRZ]
 GO
-/****** Object:  StoredProcedure [dbo].[up_logistics_Tracking]    Script Date: 16/07/2025 05:50:39 p. m. ******/
+/****** Object:  StoredProcedure [dbo].[up_logistics_Tracking]    Script Date: 17/07/2025 12:05:17 p. m. ******/
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -112,7 +112,6 @@ ALTER PROCEDURE [dbo].[up_logistics_Tracking]
 	, @CFDI_Conceptos              VARCHAR(MAX) = NULL
 	, @CFDI_SubtotalExcento        DECIMAL(18,4) = NULL
 	, @CFDI_SubtotalAgravado       DECIMAL(18,4) = NULL
-	, @CFDI_BaseIVA0			   DECIMAL(18, 4) = NULL
 	, @CFDI_ValidaImporte          VARCHAR(150) = NULL
 	, @CFDI_EstadoSAT              VARCHAR(150) = NULL
 
@@ -321,6 +320,7 @@ BEGIN
 			
 				--INSERT INTO [HNT-Files].dbo.Files_Tracking_HNT_TRZ(nIdTracking, sTipo, sNombre, sExtension, fArchivo, sRutaOrigen, dFechaAlta, nIdUsuario, sObservaciones)
 				--							   VALUES (@IdTracking, @Tipo, @Nombre, @Extension, @Archivo, @RutaOrigen, GETDATE(), @Usuario, @Observaciones)
+
 				INSERT INTO [HNT-Files].dbo.Files_Tracking_HNT_TRZ(nIdTracking,
 				sTipo,
 				sNombre,
@@ -357,9 +357,7 @@ BEGIN
 				CFDI_SubtotalExcento,
 				CFDI_SubtotalAgravado,
 				CFDI_ValidaImporte,
-				CFDI_EstadoSAT,
-				CFDI_BaseIVA0
-				) VALUES (
+				CFDI_EstadoSAT) VALUES (
 				@IdTracking, 
 				@Tipo, 
 				@Nombre, 
@@ -396,8 +394,7 @@ BEGIN
 				@CFDI_SubtotalExcento,
 				@CFDI_SubtotalAgravado,
 				@CFDI_ValidaImporte,
-				@CFDI_EstadoSAT,
-				@CFDI_BaseIVA0
+				@CFDI_EstadoSAT
 				)
 			END
 			
@@ -458,7 +455,7 @@ BEGIN
 					A.CFDI_Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS AS DESCRIPCIÓN,
 					A.CFDI_UUID COLLATE SQL_Latin1_General_CP1_CI_AS AS UUID,
 					A.CFDI_Folio COLLATE SQL_Latin1_General_CP1_CI_AS AS FOLIO,
-					A.CFDI_SUBTOTAL + ISNULL(CFDI_BaseIVA0, 0) AS SUBTOTAL,
+					A.CFDI_SUBTOTAL AS SUBTOTAL,
 					A.CFDI_IVA16 AS IVA,
 					A.CFDI_TOTAL AS TOTAL					
 				FROM [HNT-Files].dbo.Files_Tracking A
@@ -488,7 +485,7 @@ BEGIN
 					A.CFDI_Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS AS DESCRIPCIÓN,
 					A.CFDI_UUID COLLATE SQL_Latin1_General_CP1_CI_AS AS UUID,
 					A.CFDI_Folio COLLATE SQL_Latin1_General_CP1_CI_AS AS FOLIO,
-					A.CFDI_SUBTOTAL + ISNULL(CFDI_BaseIVA0, 0)  AS SUBTOTAL,
+					A.CFDI_SUBTOTAL AS SUBTOTAL,
 					A.CFDI_IVA16 AS IVA,
 					A.CFDI_TOTAL AS TOTAL					
 				FROM [HNT-Files].dbo.Files_Tracking_HNT_TRZ A
@@ -528,34 +525,34 @@ BEGIN
 
 				UNION ALL
 
-				--SELECT
-				--	A.nId AS nID,
-				--	'SERVIMPO' AS EMPRESA,
-				--	A.nIdTracking AS Tracking,
-				--	A.sContenedor COLLATE SQL_Latin1_General_CP1_CI_AS AS Contenedor,
-				--	A.TipoConcepto COLLATE SQL_Latin1_General_CP1_CI_AS AS CONCEPTO,
-				--	FORMAT(A.CreateDate, 'yyyy-MM-dd hh:mm:ss') AS FECHA_CREACION_TRACKING,
-				--	A.TipoConcepto COLLATE SQL_Latin1_General_CP1_CI_AS AS Tipo,
-				--	'Logistica' AS TIPO_DOCUMENTO,
-				--	B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS AS sNombre,
-				--	B.Extension COLLATE SQL_Latin1_General_CP1_CI_AS AS sExtension,	
-				--	B.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS AS EMISOR_RFC,
-				--	B.NombreEmisor COLLATE SQL_Latin1_General_CP1_CI_AS AS NOMBRE_EMISOR,
-				--	FORMAT(B.dFechaPago, 'yyyy-MM-dd hh:mm:ss') AS FECHA_CFDI,
-				--	B.Receptor COLLATE SQL_Latin1_General_CP1_CI_AS AS RECEPTOR_RFC,
-				--	B.NombreReceptor COLLATE SQL_Latin1_General_CP1_CI_AS AS NOMBRE_RECEPTOR,
-				--	B.Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS AS DESCRIPCIÓN,
-				--	B.UUID COLLATE SQL_Latin1_General_CP1_CI_AS AS UUID,
-				--	B.sFolio COLLATE SQL_Latin1_General_CP1_CI_AS AS FOLIO,
-				--	0 AS SUBTOTAL,
-				--	0 AS IVA,		
-				--	A.MontoFactura AS TOTAL
-				--FROM [HNT_SERVIMPO].logistics.Tracking_FacturasLogistica A
-				--INNER JOIN [HNT-Files].dbo.File_CFDI_SERVIMPO B ON A.nIdArchivo = B.nIdArchivo
-				--WHERE 
-				--	A.nIdTracking > 0
+				SELECT
+					A.nId AS nID,
+					'SERVIMPO' AS EMPRESA,
+					A.nIdTracking AS Tracking,
+					A.sContenedor COLLATE SQL_Latin1_General_CP1_CI_AS AS Contenedor,
+					A.TipoConcepto COLLATE SQL_Latin1_General_CP1_CI_AS AS CONCEPTO,
+					FORMAT(A.CreateDate, 'yyyy-MM-dd hh:mm:ss') AS FECHA_CREACION_TRACKING,
+					A.TipoConcepto COLLATE SQL_Latin1_General_CP1_CI_AS AS Tipo,
+					'Logistica' AS TIPO_DOCUMENTO,
+					B.Nombre COLLATE SQL_Latin1_General_CP1_CI_AS AS sNombre,
+					B.Extension COLLATE SQL_Latin1_General_CP1_CI_AS AS sExtension,	
+					B.Emisor COLLATE SQL_Latin1_General_CP1_CI_AS AS EMISOR_RFC,
+					B.NombreEmisor COLLATE SQL_Latin1_General_CP1_CI_AS AS NOMBRE_EMISOR,
+					FORMAT(B.dFechaPago, 'yyyy-MM-dd hh:mm:ss') AS FECHA_CFDI,
+					B.Receptor COLLATE SQL_Latin1_General_CP1_CI_AS AS RECEPTOR_RFC,
+					B.NombreReceptor COLLATE SQL_Latin1_General_CP1_CI_AS AS NOMBRE_RECEPTOR,
+					B.Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS AS DESCRIPCIÓN,
+					B.UUID COLLATE SQL_Latin1_General_CP1_CI_AS AS UUID,
+					B.sFolio COLLATE SQL_Latin1_General_CP1_CI_AS AS FOLIO,
+					0 AS SUBTOTAL,
+					0 AS IVA,		
+					A.MontoFactura AS TOTAL
+				FROM [HNT_SERVIMPO].logistics.Tracking_FacturasLogistica A
+				INNER JOIN [HNT-Files].dbo.File_CFDI_SERVIMPO B ON A.nIdArchivo = B.nIdArchivo
+				WHERE 
+					A.nIdTracking > 0
 
-				--UNION ALL
+				UNION ALL
 
 				SELECT
 					A.nID,
@@ -576,7 +573,7 @@ BEGIN
 					A.CFDI_Conceptos COLLATE SQL_Latin1_General_CP1_CI_AS AS DESCRIPCIÓN,
 					A.CFDI_UUID COLLATE SQL_Latin1_General_CP1_CI_AS AS UUID,
 					A.CFDI_Folio COLLATE SQL_Latin1_General_CP1_CI_AS AS FOLIO,
-					A.CFDI_SUBTOTAL + ISNULL(CFDI_BaseIVA0, 0) AS SUBTOTAL,
+					A.CFDI_SUBTOTAL AS SUBTOTAL,
 					A.CFDI_IVA16 AS IVA,
 					A.CFDI_TOTAL AS TOTAL					
 				FROM [HNT-Files].dbo.Files_Tracking_SERVIMPO A
@@ -820,67 +817,88 @@ BEGIN
 			ORDER BY A.nIdTracking
 
 			SELECT 	
-			DISTINCT
-			a.nIdTracking, A.nTipoTracking, 
-			C.DocNum[FacturaReserva], 
-			A.sCodAlmacenDestino, CL.CardCode, CL.CardName[Proveedor] 
-			, B.sFactura --[PJ-FLOT].dbo.SinComaFinal((SELECT F0.sFactura + '','' FROM logistics.Tracking_Facturas F0 WHERE F0.nIdTracking = A.nIdTracking AND F0.bActivo = 1 FOR XML PATH('''')))
-			[FacturaProv]
-			,C.DocEntry[iFacturaReserva] 
-			,C.DocNum[Factura Reserva] 
-			--CAST(RIGHT(''0000'' + CAST(YEAR(C.CreateDate) AS varchar(4)),4) + ''-'' + RIGHT(''00'' + CAST(MONTH(C.CreateDate) AS varchar(2)),2) + ''-'' + RIGHT(''00'' + CAST(DAY(C.CreateDate) AS varchar(2)),2) + '' '' +
-			--CASE
-			--	WHEN LEN(C.DocTime)=3 THEN 
-			--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(3)),1,1) AS tinyint), ''00'') + '':'' +
-			--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(3)),2,2) AS tinyint), ''00'') --+ '':'' +
-			--	WHEN LEN(C.DocTime)=4 THEN 
-			--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(4)),1,2) AS tinyint), ''00'') + '':'' +
-			--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(4)),3,2) AS tinyint), ''00'') --+ '':'' +
-			--END AS datetime)[Fecha FR]
-			, DD.DocEntry[iEM]
-			, DD.DocNum[EM]
-			--, CAST(RIGHT(''0000'' + CAST(YEAR(DD.CreateDate) AS varchar(4)),4) + ''-'' + RIGHT(''00'' + CAST(MONTH(DD.CreateDate) AS varchar(2)),2) + ''-'' + RIGHT(''00'' + CAST(DAY(DD.CreateDate) AS varchar(2)),2) + '' '' +
-			--CASE
-			--	WHEN LEN(DD.DocTime)=3 THEN 
-			--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(3)),1,1) AS tinyint), ''00'') + '':'' +
-			--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(3)),2,2) AS tinyint), ''00'') --+ '':'' +
-			--	WHEN LEN(DD.DocTime)=4 THEN 
-			--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(4)),1,2) AS tinyint), ''00'') + '':'' +
-			--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(4)),3,2) AS tinyint), ''00'') --+ '':'' +
-			--END AS datetime)[Fecha EM] 
-			, A.sPedimento[Pedimento]
-			, IG.nTasaIGI
-			, EE.DocNum[PE]
-			, CASE  
-				WHEN ISNULL(EE.U_EstadoEntrega,''02'') = ''01'' AND EE.DocNum IS NOT NULL THEN ''Parcial''
-				WHEN ISNULL(EE.U_EstadoEntrega,''02'') = ''02'' AND EE.DocNum IS NOT NULL THEN ''Completo''
-			  END[Tipo]
-			, dbo.HNT_SinComaFinal((SELECT DISTINCT CONCAT(nIdTraspaso,'','') FROM logistics.Tracking_Encabezado A0 
-			INNER JOIN logistics.Tracking_EM_TR B0 ON B0.nIdTracking = A0.nIdTracking AND B0.nIdEM = DD.DocEntry FOR XML PATH('''')))[Traspasos]
-			, ISNULL((SELECT COUNT( DISTINCT nIdTraspaso) FROM logistics.Tracking_Encabezado A0 
-			INNER JOIN logistics.Tracking_EM_TR B0 ON B0.nIdTracking = A0.nIdTracking AND B0.nIdEM = DD.DocEntry
-			),0)[NumTraspasos]
-		----	, /*CL.QryGroup51*/''N'' QryGroupImportacion
-			, CASE WHEN A.dFechaCreacion <= ''2023-11-30'' AND A.nTipoTracking = 2 THEN ''N'' ELSE CL.QryGroup51 END QryGroupImportacion
-			, A.sAduana
-			, FORMAT(A.sFechaEmision, ''yyyy-MM-dd'') sFechaEmision
-			FROM logistics.Tracking_Encabezado A
-			INNER JOIN logistics.Tracking_Facturas B ON B.nIdTracking = A.nIdTracking AND B.bActivo = 1
-			INNER JOIN SBOCTRZ.dbo.OPCH C ON CASE WHEN A.nTipoTracking = 1 THEN C.NumAtCard WHEN A.nTipoTracking = 2 THEN CAST(C.DocEntry AS VARCHAR(50)) END = CASE WHEN A.nTipoTracking = 1 THEN B.sFactura WHEN A.nTipoTracking = 2 THEN CAST(B.DocEntrySAP AS VARCHAR(50)) END AND C.DocType = ''I''					    
-			INNER JOIN SBOCTRZ.dbo.PCH1 CC ON CC.DocEntry = C.DocEntry
-			LEFT JOIN SBOCTRZ.dbo.OCRD CL ON CL.CardCode = C.CardCode
-			LEFT JOIN SBOCTRZ.dbo.PDN1 D ON D.BaseEntry = CC.DocEntry AND D.BaseLine = CC.LineNum AND D.BaseType = 18
-			LEFT JOIN SBOCTRZ.dbo.OPDN DD ON DD.DocEntry = D.DocEntry
-			LEFT JOIN SBOCTRZ.dbo.IPF1 E ON E.BaseEntry = D.DocEntry AND E.OrigLine = D.LineNum AND E.BaseType = 20
-			LEFT JOIN SBOCTRZ.dbo.OIPF EE ON EE.DocEntry = E.DocEntry
-			LEFT JOIN logistics.Tracking_EM_IGI IG ON IG.nIdTracking = A.nIdTracking AND IG.DocEntry = DD.DocEntry
-			LEFT JOIN [HNT_TRZ].logistics.EmbarquesV2 EMB ON EMB.Tracking = A.nIdTracking
+				DISTINCT
+				a.nIdTracking, A.nTipoTracking, 
+				C.DocNum[FacturaReserva], 
+				A.sCodAlmacenDestino, CL.CardCode, CL.CardName[Proveedor] 
+				, B.sFactura --[PJ-FLOT].dbo.SinComaFinal((SELECT F0.sFactura + '','' FROM logistics.Tracking_Facturas F0 WHERE F0.nIdTracking = A.nIdTracking AND F0.bActivo = 1 FOR XML PATH('''')))
+				[FacturaProv]
+				,C.DocEntry[iFacturaReserva] 
+				,C.DocNum[Factura Reserva] 
+				--CAST(RIGHT(''0000'' + CAST(YEAR(C.CreateDate) AS varchar(4)),4) + ''-'' + RIGHT(''00'' + CAST(MONTH(C.CreateDate) AS varchar(2)),2) + ''-'' + RIGHT(''00'' + CAST(DAY(C.CreateDate) AS varchar(2)),2) + '' '' +
+				--CASE
+				--	WHEN LEN(C.DocTime)=3 THEN 
+				--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(3)),1,1) AS tinyint), ''00'') + '':'' +
+				--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(3)),2,2) AS tinyint), ''00'') --+ '':'' +
+				--	WHEN LEN(C.DocTime)=4 THEN 
+				--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(4)),1,2) AS tinyint), ''00'') + '':'' +
+				--	FORMAT(CAST(SUBSTRING(CAST(C.DocTime AS VARCHAR(4)),3,2) AS tinyint), ''00'') --+ '':'' +
+				--END AS datetime)[Fecha FR]
+				, DD.DocEntry[iEM]
+				, DD.DocNum[EM]
+				--, CAST(RIGHT(''0000'' + CAST(YEAR(DD.CreateDate) AS varchar(4)),4) + ''-'' + RIGHT(''00'' + CAST(MONTH(DD.CreateDate) AS varchar(2)),2) + ''-'' + RIGHT(''00'' + CAST(DAY(DD.CreateDate) AS varchar(2)),2) + '' '' +
+				--CASE
+				--	WHEN LEN(DD.DocTime)=3 THEN 
+				--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(3)),1,1) AS tinyint), ''00'') + '':'' +
+				--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(3)),2,2) AS tinyint), ''00'') --+ '':'' +
+				--	WHEN LEN(DD.DocTime)=4 THEN 
+				--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(4)),1,2) AS tinyint), ''00'') + '':'' +
+				--	FORMAT(CAST(SUBSTRING(CAST(DD.DocTime AS VARCHAR(4)),3,2) AS tinyint), ''00'') --+ '':'' +
+				--END AS datetime)[Fecha EM] 
+				, A.sPedimento[Pedimento]
+				, IG.nTasaIGI
+				, EE.DocNum[PE]
+				, CASE  
+					WHEN ISNULL(EE.U_EstadoEntrega,''02'') = ''01'' AND EE.DocNum IS NOT NULL THEN ''Parcial''
+					WHEN ISNULL(EE.U_EstadoEntrega,''02'') = ''02'' AND EE.DocNum IS NOT NULL THEN ''Completo''
+				  END[Tipo]
+				, dbo.HNT_SinComaFinal((SELECT DISTINCT CONCAT(nIdTraspaso,'','') FROM logistics.Tracking_Encabezado A0 
+				INNER JOIN logistics.Tracking_EM_TR B0 ON B0.nIdTracking = A0.nIdTracking AND B0.nIdEM = DD.DocEntry FOR XML PATH('''')))[Traspasos]
+				, ISNULL((SELECT COUNT( DISTINCT nIdTraspaso) FROM logistics.Tracking_Encabezado A0 
+				INNER JOIN logistics.Tracking_EM_TR B0 ON B0.nIdTracking = A0.nIdTracking AND B0.nIdEM = DD.DocEntry
+				),0)[NumTraspasos]
+			----	, /*CL.QryGroup51*/''N'' QryGroupImportacion
+				, CASE WHEN A.dFechaCreacion <= ''2023-11-30'' AND A.nTipoTracking = 2 THEN ''N'' ELSE CL.QryGroup51 END QryGroupImportacion
+				, A.sAduana
+				, FORMAT(A.sFechaEmision, ''yyyy-MM-dd'') sFechaEmision
+				, G.DocEntry [OC_FR]
+				FROM logistics.Tracking_Encabezado A
+				INNER JOIN logistics.Tracking_Facturas B ON B.nIdTracking = A.nIdTracking AND B.bActivo = 1
+				INNER JOIN SBOCTRZ.dbo.OPCH C ON CASE WHEN A.nTipoTracking = 1 THEN C.NumAtCard WHEN A.nTipoTracking = 2 THEN CAST(C.DocEntry AS VARCHAR(50)) END = CASE WHEN A.nTipoTracking = 1 THEN B.sFactura WHEN A.nTipoTracking = 2 THEN CAST(B.DocEntrySAP AS VARCHAR(50)) END AND C.DocType = ''I''					    
+				INNER JOIN SBOCTRZ.dbo.PCH1 CC ON CC.DocEntry = C.DocEntry
+				LEFT JOIN SBOCTRZ.dbo.OCRD CL ON CL.CardCode = C.CardCode
+				LEFT JOIN SBOCTRZ.dbo.PDN1 D ON D.BaseEntry = CC.DocEntry AND D.BaseLine = CC.LineNum AND D.BaseType = 18
+				LEFT JOIN SBOCTRZ.dbo.OPDN DD ON DD.DocEntry = D.DocEntry
+				LEFT JOIN SBOCTRZ.dbo.IPF1 E ON E.BaseEntry = D.DocEntry AND E.OrigLine = D.LineNum AND E.BaseType = 20
+				LEFT JOIN SBOCTRZ.dbo.OIPF EE ON EE.DocEntry = E.DocEntry
+				LEFT JOIN logistics.Tracking_EM_IGI IG ON IG.nIdTracking = A.nIdTracking AND IG.DocEntry = DD.DocEntry
+				LEFT JOIN [HNT_TRZ].logistics.EmbarquesV2 EMB ON EMB.Tracking = A.nIdTracking
+				
+				---Nuevos JOINS AGREGADOS BRYAN (OC DE FACTURA DE RESERVA
+				LEFT JOIN SBOCTRZ.dbo.POR1 GG ON GG.DocEntry = CC.BaseEntry 
+					AND GG.LineNum = CC.BaseLine 				
+				LEFT JOIN SBOCTRZ.dbo.OPOR G ON G.DocEntry = GG.DocEntry
 			WHERE A.bActivo = 1 AND B.bActivo = 1 '+@Filtro+'
-			GROUP BY a.nIdTracking, A.nTipoTracking, A.sCodAlmacenDestino, CL.CardCode, CL.CardName, B.sFactura, C.DocEntry, C.DocNum, DD.DocEntry, DD.DocNum, A.sPedimento, IG.nTasaIGI, EE.DocNum, EE.U_EstadoEntrega
-			, CL.QryGroup51
-			, A.sAduana
-			, A.sFechaEmision
-			, A.dFechaCreacion
+			GROUP BY 
+				a.nIdTracking
+				, A.nTipoTracking
+				, A.sCodAlmacenDestino
+				, CL.CardCode
+				, CL.CardName
+				, B.sFactura
+				, C.DocEntry
+				, C.DocNum
+				, DD.DocEntry
+				, DD.DocNum
+				, A.sPedimento
+				, IG.nTasaIGI
+				, EE.DocNum
+				, EE.U_EstadoEntrega
+				, CL.QryGroup51
+				, A.sAduana
+				, A.sFechaEmision
+				, A.dFechaCreacion
+				, G.DocEntry
 			ORDER BY A.nIdTracking
 		END
 		ELSE
@@ -2283,7 +2301,7 @@ BEGIN
 			--18837, 18839, 18840, 10194, 10066, 10016 /*Provs Chinos -->*/,10009, 15967, 10119, 15996, 18857, 4044, 10115  )))
 			WHERE 
 			A.DocNum in (
-			200055283
+			200055557
 		--200047269,200047270
 ) --8791 200004270 DOCNUM = 3249
 			AND A.CardCode IN (SELECT CardCode FROM purchase.ProveedoresTracking)
